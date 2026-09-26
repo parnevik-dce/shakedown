@@ -5,7 +5,10 @@ import * as Clipboard from 'expo-clipboard';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Avatar, EmptyState, LinkButton, SectionLabel } from '@/components/ui';
+import { Avatar, EmptyState, LinkButton, PrimaryButton, SectionLabel } from '@/components/ui';
+import { fetchGroupActivity, type ActivityItem, type GroupActivity } from '@/lib/expenses';
+import { formatCents } from '@/lib/money';
+import { formatWhen } from '@/lib/time';
 import {
   fetchGroup,
   getOrCreateInviteCode,
@@ -23,6 +26,54 @@ function messageOf(err: unknown) {
   return err instanceof Error ? err.message : 'Something went wrong. Please try again.';
 }
 
+function ActivityRow({ item, me }: { item: ActivityItem; me: string }) {
+  const who = item.actorId === me ? 'You' : item.actorName;
+  const isExpense = item.entityType === 'expense';
+  const deleted = item.action === 'expense_deleted' || item.action === 'settlement_deleted';
+  const verb =
+    item.action === 'expense_added'
+      ? 'added'
+      : item.action === 'expense_edited'
+        ? 'edited'
+        : item.action === 'expense_deleted'
+          ? 'deleted'
+          : item.action === 'settlement_added'
+            ? 'recorded a payment'
+            : 'removed a payment';
+  const title = isExpense ? `${who} ${verb} ${item.summary ?? 'an expense'}` : `${who} ${verb}`;
+  // `mine` is null once the expense itself has been deleted, so old entries stop linking to it.
+  const tappable = isExpense && !deleted && item.mine !== null;
+  const mine = item.mine && !deleted ? item.mine : null;
+
+  return (
+    <Pressable
+      accessibilityRole={tappable ? 'button' : undefined}
+      disabled={!tappable}
+      onPress={() => router.push({ pathname: '/expense/[id]', params: { id: item.entityId } })}
+      style={({ pressed }) => [styles.feedRow, pressed && { backgroundColor: colors.surface }]}
+    >
+      <Avatar name={item.actorName} size={38} />
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.feedTitle, deleted && styles.struck]} numberOfLines={2}>
+          {title}
+        </Text>
+        <Text style={styles.feedSub}>{formatWhen(item.createdAt)}</Text>
+      </View>
+      <View style={{ alignItems: 'flex-end' }}>
+        {item.amountCents !== null && (
+          <Text style={[styles.feedAmount, deleted && styles.struck]}>{formatCents(item.amountCents)}</Text>
+        )}
+        {mine && mine.kind === 'lent' && (
+          <Text style={[styles.feedSub, { color: colors.positive }]}>you lent {formatCents(mine.cents)}</Text>
+        )}
+        {mine && mine.kind === 'owe' && (
+          <Text style={[styles.feedSub, { color: colors.negative }]}>you owe {formatCents(mine.cents)}</Text>
+        )}
+      </View>
+    </Pressable>
+  );
+}
+
 export default function GroupScreen() {
   const { id, tab: initialTab } = useLocalSearchParams<{ id: string; tab?: string }>();
   const { session } = useSession();
@@ -30,19 +81,21 @@ export default function GroupScreen() {
 
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [code, setCode] = useState<string | null>(null);
+  const [activity, setActivity] = useState<GroupActivity | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>(initialTab === 'members' ? 'members' : 'activity');
 
   const load = useCallback(async () => {
     try {
-      const [g, c] = await Promise.all([fetchGroup(id), getOrCreateInviteCode(id)]);
+      const [g, c, a] = await Promise.all([fetchGroup(id), getOrCreateInviteCode(id), fetchGroupActivity(id, me)]);
       setGroup(g);
       setCode(c);
+      setActivity(a);
       setError(null);
     } catch (err) {
       setError(messageOf(err));
     }
-  }, [id]);
+  }, [id, me]);
 
   useFocusEffect(
     useCallback(() => {
@@ -126,9 +179,21 @@ export default function GroupScreen() {
         <>
           <View style={styles.summary}>
             <Text style={styles.summarySub}>
-              {group.members.length} member{group.members.length === 1 ? '' : 's'} · no expenses yet
+              {group.members.length} member{group.members.length === 1 ? '' : 's'} ·{' '}
+              {activity?.expenseCount
+                ? `${activity.expenseCount} expense${activity.expenseCount === 1 ? '' : 's'}`
+                : 'no expenses yet'}
             </Text>
-            <Text style={styles.summaryTitle}>Settled up</Text>
+            {(() => {
+              const net = activity?.myNetCents ?? 0;
+              if (net === 0) return <Text style={styles.summaryTitle}>Settled up</Text>;
+              return (
+                <Text style={[styles.summaryTitle, { color: net > 0 ? colors.positive : colors.negative }]}>
+                  {net > 0 ? "You're owed " : 'You owe '}
+                  {formatCents(net)}
+                </Text>
+              );
+            })()}
           </View>
 
           <View style={styles.tabs}>
@@ -143,14 +208,30 @@ export default function GroupScreen() {
           </View>
 
           {tab === 'activity' ? (
-            <View style={styles.center}>
-              <EmptyState
-                icon="receipt-outline"
-                title="Nothing here yet"
-                message="Add the first expense and everyone's balance starts keeping itself."
-              >
-                <LinkButton title="Invite people first" onPress={() => setTab('members')} />
-              </EmptyState>
+            <View style={{ flex: 1 }}>
+              {activity && activity.items.length === 0 ? (
+                <View style={styles.center}>
+                  <EmptyState
+                    icon="receipt-outline"
+                    title="Nothing here yet"
+                    message="Add the first expense and everyone's balance starts keeping itself."
+                  >
+                    <LinkButton title="Invite people first" onPress={() => setTab('members')} />
+                  </EmptyState>
+                </View>
+              ) : (
+                <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
+                  {activity?.items.map((item) => (
+                    <ActivityRow key={item.id} item={item} me={me} />
+                  ))}
+                </ScrollView>
+              )}
+              <View style={styles.addBar}>
+                <PrimaryButton
+                  title="Add expense"
+                  onPress={() => router.push({ pathname: '/expense/new', params: { groupId: id } })}
+                />
+              </View>
             </View>
           ) : (
             <ScrollView contentContainerStyle={styles.membersBody}>
@@ -207,6 +288,12 @@ export default function GroupScreen() {
 }
 
 const styles = StyleSheet.create({
+  addBar: { padding: spacing.lg, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  feedRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: 12 },
+  feedTitle: { fontSize: 15, fontWeight: '600', color: colors.text },
+  feedSub: { fontSize: 13, color: colors.muted, marginTop: 2 },
+  feedAmount: { fontSize: 16, fontWeight: '700', color: colors.text },
+  struck: { textDecorationLine: 'line-through', color: colors.muted },
   screen: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, justifyContent: 'center', paddingBottom: 60 },
   nav: {

@@ -25,6 +25,8 @@ function RootNavigator() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="groups/new" options={{ presentation: 'modal' }} />
         <Stack.Screen name="groups/[id]" />
+        <Stack.Screen name="expense/new" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="expense/[id]" />
         <Stack.Screen name="join/index" options={{ presentation: 'modal' }} />
         <Stack.Screen name="join/[code]" options={{ presentation: 'modal' }} />
       </Stack.Protected>
