@@ -39,7 +39,7 @@ export default function JoinWithCode() {
             autoCapitalize="characters"
             autoCorrect={false}
             value={code}
-            onChangeText={(t) => setCode(t.replace(/\s/g, ''))}
+            onChangeText={(t) => setCode(t.replace(/\s/g, '').toUpperCase())}
             placeholder="K7QP2M9X41"
             placeholderTextColor={colors.muted}
             maxLength={16}

@@ -68,8 +68,8 @@ export default function GroupScreen() {
     ]);
   }
 
-  function confirmRemove(userId: string, name: string) {
-    Alert.alert(`Remove ${name}?`, 'They will lose access to this group.', [
+  function confirmRemove(userId: string, name: string, email: string | null) {
+    Alert.alert(`Remove ${name}${email ? ` (${email})` : ''}?`, 'They will lose access to this group.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
@@ -188,7 +188,7 @@ export default function GroupScreen() {
                       {m.role === 'owner' ? (
                         <Text style={styles.memberSub}>Owner</Text>
                       ) : m.userId !== me ? (
-                        <LinkButton title="Remove" danger onPress={() => confirmRemove(m.userId, m.displayName)} />
+                        <LinkButton title="Remove" danger onPress={() => confirmRemove(m.userId, m.displayName, m.email)} />
                       ) : null}
                     </View>
                   </View>
