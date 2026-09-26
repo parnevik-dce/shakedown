@@ -14,6 +14,7 @@ export default function SignIn() {
     try {
       await signInWithGoogle();
     } catch (err) {
+      console.error('Sign-in failed', err);
       Alert.alert('Sign-in failed', err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {
       setBusy(false);
