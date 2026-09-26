@@ -166,6 +166,8 @@ await ok('anon sees nothing / denied', async () => {
   try { await as(null, `select * from expenses`); throw new Error('anon allowed'); }
   catch (e) { if (e.message === 'anon allowed') throw e; }
 });
+await denied('signed-in users cannot probe balances via assert_no_open_balance', () => as(B, `select assert_no_open_balance($1, $2)`, [G, A]), 'permission denied');
+await denied('anon cannot call internal trigger functions', () => as(null, `select handle_new_user()`), 'permission denied');
 await ok('storage helpers', async () => {
   const r = await as(A, `select storage_group_id('${G}/x.jpg') g, storage_group_id('junk/x') j, can_write_receipt('${G}/${E}.jpg') w`);
   eq(r.rows[0].g, G, 'gid'); eq(r.rows[0].j, null, 'junk');
