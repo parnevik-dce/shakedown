@@ -6,6 +6,8 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar, EmptyState, LinkButton, PrimaryButton, SectionLabel } from '@/components/ui';
+import { BalancesTab } from '@/components/BalancesTab';
+import { fetchGroupBalances, type GroupBalances } from '@/lib/balances';
 import { fetchGroupActivity, type ActivityItem, type GroupActivity } from '@/lib/expenses';
 import { formatCents } from '@/lib/money';
 import { formatWhen } from '@/lib/time';
@@ -20,7 +22,7 @@ import {
 import { useSession } from '@/lib/session';
 import { colors, spacing } from '@/lib/theme';
 
-type Tab = 'activity' | 'members';
+type Tab = 'activity' | 'balances' | 'members';
 
 function messageOf(err: unknown) {
   return err instanceof Error ? err.message : 'Something went wrong. Please try again.';
@@ -35,29 +37,36 @@ function ActivityRow({ item, me }: { item: ActivityItem; me: string }) {
       ? 'added'
       : item.action === 'expense_edited'
         ? 'edited'
-        : item.action === 'expense_deleted'
-          ? 'deleted'
-          : item.action === 'settlement_added'
-            ? 'recorded a payment'
-            : 'removed a payment';
-  const title = isExpense ? `${who} ${verb} ${item.summary ?? 'an expense'}` : `${who} ${verb}`;
+        : 'deleted';
+  const name = (id: string, n: string) => (id === me ? 'You' : n);
+  const st = item.settlement;
+  const title = isExpense
+    ? `${who} ${verb} ${item.summary ?? 'an expense'}`
+    : st
+      ? `${name(st.paidBy, st.payerName)} paid ${name(st.paidTo, st.payeeName)}`
+      : `${who} recorded a payment`;
   // `mine` is null once the expense itself has been deleted, so old entries stop linking to it.
-  const tappable = isExpense && !deleted && item.mine !== null;
+  const tappable = isExpense ? !deleted && item.mine !== null : !!st && !st.deleted && !deleted;
   const mine = item.mine && !deleted ? item.mine : null;
+  const sub = isExpense ? formatWhen(item.createdAt) : `${formatWhen(item.createdAt)} · settlement${deleted ? ' removed' : ''}`;
 
   return (
     <Pressable
       accessibilityRole={tappable ? 'button' : undefined}
       disabled={!tappable}
-      onPress={() => router.push({ pathname: '/expense/[id]', params: { id: item.entityId } })}
+      onPress={() =>
+        isExpense
+          ? router.push({ pathname: '/expense/[id]', params: { id: item.entityId } })
+          : router.push({ pathname: '/settlement/[id]', params: { id: item.entityId } })
+      }
       style={({ pressed }) => [styles.feedRow, pressed && { backgroundColor: colors.surface }]}
     >
-      <Avatar name={item.actorName} size={38} />
+      <Avatar name={isExpense ? item.actorName : (st?.payerName ?? item.actorName)} size={38} />
       <View style={{ flex: 1 }}>
         <Text style={[styles.feedTitle, deleted && styles.struck]} numberOfLines={2}>
           {title}
         </Text>
-        <Text style={styles.feedSub}>{formatWhen(item.createdAt)}</Text>
+        <Text style={styles.feedSub}>{sub}</Text>
       </View>
       <View style={{ alignItems: 'flex-end' }}>
         {item.amountCents !== null && (
@@ -74,6 +83,17 @@ function ActivityRow({ item, me }: { item: ActivityItem; me: string }) {
   );
 }
 
+function AddBar({ groupId }: { groupId: string }) {
+  return (
+    <View style={styles.addBar}>
+      <PrimaryButton
+        title="Add expense"
+        onPress={() => router.push({ pathname: '/expense/new', params: { groupId } })}
+      />
+    </View>
+  );
+}
+
 export default function GroupScreen() {
   const { id, tab: initialTab } = useLocalSearchParams<{ id: string; tab?: string }>();
   const { session } = useSession();
@@ -82,15 +102,22 @@ export default function GroupScreen() {
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [activity, setActivity] = useState<GroupActivity | null>(null);
+  const [balances, setBalances] = useState<GroupBalances | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>(initialTab === 'members' ? 'members' : 'activity');
 
   const load = useCallback(async () => {
     try {
-      const [g, c, a] = await Promise.all([fetchGroup(id), getOrCreateInviteCode(id), fetchGroupActivity(id, me)]);
+      const [g, c, a, b] = await Promise.all([
+        fetchGroup(id),
+        getOrCreateInviteCode(id),
+        fetchGroupActivity(id, me),
+        fetchGroupBalances(id),
+      ]);
       setGroup(g);
       setCode(c);
       setActivity(a);
+      setBalances(b);
       setError(null);
     } catch (err) {
       setError(messageOf(err));
@@ -197,10 +224,10 @@ export default function GroupScreen() {
           </View>
 
           <View style={styles.tabs}>
-            {(['activity', 'members'] as const).map((t) => (
+            {(['activity', 'balances', 'members'] as const).map((t) => (
               <Pressable key={t} accessibilityRole="tab" onPress={() => setTab(t)} style={styles.tab}>
                 <Text style={[styles.tabText, tab === t && styles.tabActive]}>
-                  {t === 'activity' ? 'Activity' : 'Members'}
+                  {t === 'activity' ? 'Activity' : t === 'balances' ? 'Balances' : 'Members'}
                 </Text>
                 {tab === t && <View style={styles.tabUnderline} />}
               </Pressable>
@@ -226,12 +253,12 @@ export default function GroupScreen() {
                   ))}
                 </ScrollView>
               )}
-              <View style={styles.addBar}>
-                <PrimaryButton
-                  title="Add expense"
-                  onPress={() => router.push({ pathname: '/expense/new', params: { groupId: id } })}
-                />
-              </View>
+              <AddBar groupId={id} />
+            </View>
+          ) : tab === 'balances' ? (
+            <View style={{ flex: 1 }}>
+              {balances && <BalancesTab groupId={id} me={me} members={group.members} balances={balances} />}
+              <AddBar groupId={id} />
             </View>
           ) : (
             <ScrollView contentContainerStyle={styles.membersBody}>
@@ -266,11 +293,23 @@ export default function GroupScreen() {
                         </Text>
                         {m.email ? <Text style={styles.memberSub}>{m.email}</Text> : null}
                       </View>
-                      {m.role === 'owner' ? (
-                        <Text style={styles.memberSub}>Owner</Text>
-                      ) : m.userId !== me ? (
-                        <LinkButton title="Remove" danger onPress={() => confirmRemove(m.userId, m.displayName, m.email)} />
-                      ) : null}
+                      <View style={{ alignItems: 'flex-end', gap: 2 }}>
+                        {(() => {
+                          const net = balances?.net.get(m.userId) ?? 0;
+                          if (net === 0) return null;
+                          return (
+                            <Text style={[styles.memberNet, { color: net > 0 ? colors.positive : colors.negative }]}>
+                              {net > 0 ? 'owed ' : 'owes '}
+                              {formatCents(net)}
+                            </Text>
+                          );
+                        })()}
+                        {m.role === 'owner' ? (
+                          <Text style={styles.memberSub}>Owner</Text>
+                        ) : m.userId !== me ? (
+                          <LinkButton title="Remove" danger onPress={() => confirmRemove(m.userId, m.displayName, m.email)} />
+                        ) : null}
+                      </View>
                     </View>
                   </View>
                 ))}
@@ -330,4 +369,5 @@ const styles = StyleSheet.create({
   hint: { fontSize: 13, color: colors.muted, marginTop: spacing.sm, lineHeight: 18 },
   memberName: { fontSize: 16, fontWeight: '600', color: colors.text },
   memberSub: { fontSize: 13, color: colors.muted },
+  memberNet: { fontSize: 14, fontWeight: '700' },
 });
