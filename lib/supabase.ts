@@ -3,6 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import * as Crypto from 'expo-crypto';
 
+import type { Database } from './database.types';
+
 // React Native has no crypto.subtle; without it supabase-js downgrades PKCE to the
 // weaker "plain" challenge. Shim just the SHA-256 digest it needs.
 if (typeof globalThis.crypto === 'undefined') {
@@ -27,7 +29,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,
