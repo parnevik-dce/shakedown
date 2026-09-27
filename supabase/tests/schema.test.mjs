@@ -168,6 +168,22 @@ await ok('anon sees nothing / denied', async () => {
 });
 await denied('signed-in users cannot probe balances via assert_no_open_balance', () => as(B, `select assert_no_open_balance($1, $2)`, [G, A]), 'permission denied');
 await denied('anon cannot call internal trigger functions', () => as(null, `select handle_new_user()`), 'permission denied');
+await ok('settlement with a known payment method', async () => {
+  await as(A, `select record_settlement($1,$2,$3,500,'2026-09-28','venmo')`, [G, A, B]);
+  const r = await as(A, `select payment_method, payment_method_note from settlements where group_id=$1 order by created_at desc limit 1`, [G]);
+  eq(r.rows[0], { payment_method: 'venmo', payment_method_note: null }, 'venmo, no note');
+});
+await ok("settlement with 'other' and a note", async () => {
+  await as(A, `select record_settlement($1,$2,$3,500,'2026-09-28','other','Gift card')`, [G, A, B]);
+  const r = await as(A, `select payment_method, payment_method_note from settlements where group_id=$1 order by created_at desc limit 1`, [G]);
+  eq(r.rows[0], { payment_method: 'other', payment_method_note: 'Gift card' }, "other, with note");
+});
+await denied("'other' with no note is rejected", () => as(A, `select record_settlement($1,$2,$3,500,'2026-09-28','other')`, [G, A, B]), 'payment method');
+await denied('unknown payment method is rejected', () => as(A, `select record_settlement($1,$2,$3,500,'2026-09-28','bitcoin')`, [G, A, B]), 'invalid input value');
+await ok('settlement with no payment method still works (nullable)', async () => {
+  await as(A, `select record_settlement($1,$2,$3,500)`, [G, A, B]);
+});
+
 await ok('storage helpers', async () => {
   const r = await as(A, `select storage_group_id('${G}/x.jpg') g, storage_group_id('junk/x') j, can_write_receipt('${G}/${E}.jpg') w`);
   eq(r.rows[0].g, G, 'gid'); eq(r.rows[0].j, null, 'junk');

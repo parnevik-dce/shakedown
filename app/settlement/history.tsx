@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, EmptyState, LinkButton } from '@/components/ui';
 import { fromDateString } from '@/lib/expenses';
 import { formatCents } from '@/lib/money';
-import { fetchGroupSettlements, type Settlement } from '@/lib/settlements';
+import { fetchGroupSettlements, paymentMethodLabel, type Settlement } from '@/lib/settlements';
 import { useSession } from '@/lib/session';
 import { colors, spacing } from '@/lib/theme';
 
@@ -86,6 +86,8 @@ export default function SettlementHistory() {
                 </Text>
                 <Text style={styles.rowSub}>
                   {whenLabel(item)} · recorded by {who(item.createdBy, item.creatorName)}
+                  {paymentMethodLabel(item.paymentMethod, item.paymentMethodNote) &&
+                    ` · via ${paymentMethodLabel(item.paymentMethod, item.paymentMethodNote)}`}
                 </Text>
               </View>
               <Text style={styles.amount}>{formatCents(item.amountCents)}</Text>

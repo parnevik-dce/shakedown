@@ -27,6 +27,10 @@ function RootNavigator() {
         <Stack.Screen name="groups/[id]" />
         <Stack.Screen name="expense/new" options={{ presentation: 'modal' }} />
         <Stack.Screen name="expense/[id]" />
+        {/* Default (card) presentation: a fullScreenModal pushed from a screen that is
+            itself presented as 'modal' (expense/new) confuses iOS's modal transition and
+            can leave the UI unresponsive on dismiss. */}
+        <Stack.Screen name="expense/receipt" options={{ headerShown: false }} />
         <Stack.Screen name="settlement/new" options={{ presentation: 'modal' }} />
         <Stack.Screen name="settlement/history" />
         <Stack.Screen name="settlement/[id]" />

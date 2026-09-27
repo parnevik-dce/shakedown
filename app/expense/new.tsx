@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,6 +14,7 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
+import * as Crypto from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -20,6 +22,7 @@ import { Avatar, EmptyState, LinkButton, SectionLabel } from '@/components/ui';
 import { fetchExpense, fromDateString, saveExpense } from '@/lib/expenses';
 import { fetchGroup, type GroupDetail } from '@/lib/groups';
 import { centsToInput, formatCents, parseDollars } from '@/lib/money';
+import { chooseReceiptPhoto, getReceiptUrl, removeReceipt, takeReceiptPhoto, uploadReceipt } from '@/lib/receipts';
 import { useSession } from '@/lib/session';
 import {
   checkSplit,
@@ -66,13 +69,24 @@ export default function ExpenseForm() {
   const [showDate, setShowDate] = useState(false);
   const [showPayer, setShowPayer] = useState(false);
 
+  // Receipt: `expenseId` is generated up front (even for a new expense) so a photo can be
+  // uploaded to receipts/{groupId}/{expenseId}.jpg once the expense row exists.
+  const [expenseIdForSave] = useState(() => expenseId ?? Crypto.randomUUID());
+  const [receiptPath, setReceiptPath] = useState<string | null>(null); // already-uploaded path
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null); // local uri or signed url, for display
+  const [receiptChanged, setReceiptChanged] = useState(false); // true if the saved path should change
+  const [pickedLocalUri, setPickedLocalUri] = useState<string | null>(null); // not yet uploaded
+  const [receiptBusy, setReceiptBusy] = useState(false);
+
   useEffect(() => {
     (async () => {
       try {
         const g = await fetchGroup(groupId);
         setGroup(g);
+        let loadedExpense: Awaited<ReturnType<typeof fetchExpense>> | undefined;
         if (expenseId) {
           const e = await fetchExpense(expenseId);
+          loadedExpense = e;
           if (e.createdBy !== me) throw new Error(`Only ${e.creatorName} can edit this expense.`);
           setAmountText(centsToInput(e.amountCents));
           setDescription(e.description);
@@ -102,6 +116,10 @@ export default function ExpenseForm() {
         } else {
           setInputs(g.members.map((m) => ({ userId: m.userId, included: true, text: '' })));
         }
+        if (loadedExpense?.receiptPath) {
+          setReceiptPath(loadedExpense.receiptPath);
+          getReceiptUrl(loadedExpense.receiptPath).then(setReceiptPreview).catch(() => {});
+        }
       } catch (err) {
         setLoadError(messageOf(err));
       }
@@ -116,8 +134,13 @@ export default function ExpenseForm() {
     () => checkSplit(method, totalCents !== null && totalCents > 0 ? totalCents : null, inputs, parseDollars, formatCents),
     [method, totalCents, inputs]
   );
-  const canSave =
-    !saving && description.trim().length > 0 && totalCents !== null && totalCents > 0 && check.ok;
+  const hasAmount = totalCents !== null && totalCents > 0;
+  const hasDescription = description.trim().length > 0;
+  const canSave = !saving && hasDescription && hasAmount && check.ok;
+  // Only shown once the split itself is fine, so the split summary/error (already below
+  // the split section) doesn't get duplicated up here.
+  const missing = [!hasAmount && 'an amount', !hasDescription && 'a description'].filter(Boolean) as string[];
+  const missingText = missing.length ? `Enter ${missing.join(' and ')} to save.` : null;
 
   function updateInput(userId: string, patch: Partial<SplitInput>) {
     setInputs((prev) => prev.map((i) => (i.userId === userId ? { ...i, ...patch } : i)));
@@ -139,12 +162,41 @@ export default function ExpenseForm() {
     setMethod(next);
   }
 
+  async function handlePick(source: 'camera' | 'library') {
+    setReceiptBusy(true);
+    try {
+      const uri = source === 'camera' ? await takeReceiptPhoto() : await chooseReceiptPhoto();
+      if (!uri) return;
+      setPickedLocalUri(uri);
+      setReceiptPreview(uri);
+      setReceiptChanged(true);
+    } catch (err) {
+      Alert.alert('Could not attach photo', messageOf(err));
+    } finally {
+      setReceiptBusy(false);
+    }
+  }
+
+  function pickReceipt() {
+    Alert.alert('Add receipt', undefined, [
+      { text: 'Take Photo', onPress: () => handlePick('camera') },
+      { text: 'Choose from Library', onPress: () => handlePick('library') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }
+
+  function clearReceipt() {
+    setPickedLocalUri(null);
+    setReceiptPreview(null);
+    setReceiptChanged(receiptPath !== null); // only a real change if one was saved before
+  }
+
   async function handleSave() {
     if (!check.ok || totalCents === null) return;
     setSaving(true);
     try {
-      await saveExpense({
-        id: expenseId,
+      const baseInput = {
+        id: expenseIdForSave,
         groupId,
         description: description.trim(),
         amountCents: totalCents,
@@ -152,7 +204,16 @@ export default function ExpenseForm() {
         expenseDate: date,
         method,
         splits: check.splits,
-      });
+      };
+      // The expense row must exist before a receipt can be uploaded to it (row-level
+      // security checks it), so save first with the unchanged receipt, then upload,
+      // then save again with the new path. Most saves don't touch the receipt at all.
+      await saveExpense({ ...baseInput, receiptPath });
+      if (receiptChanged) {
+        const nextPath = pickedLocalUri ? await uploadReceipt(groupId, expenseIdForSave, pickedLocalUri) : null;
+        if (receiptPath && receiptPath !== nextPath) await removeReceipt(receiptPath).catch(() => {});
+        await saveExpense({ ...baseInput, receiptPath: nextPath });
+      }
       router.back();
     } catch (err) {
       Alert.alert('Could not save expense', messageOf(err));
@@ -177,6 +238,7 @@ export default function ExpenseForm() {
           )}
         </Pressable>
       </View>
+      {missingText && <Text style={styles.missingBanner}>{missingText}</Text>}
 
       {loadError ? (
         <View style={styles.center}>
@@ -191,6 +253,9 @@ export default function ExpenseForm() {
       ) : (
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 48 }}>
+            <View style={{ paddingHorizontal: spacing.lg }}>
+              <SectionLabel>Amount *</SectionLabel>
+            </View>
             <View style={styles.amountRow}>
               <Text style={styles.currency}>$</Text>
               <TextInput
@@ -208,7 +273,9 @@ export default function ExpenseForm() {
 
             <View style={styles.rows}>
               <View style={styles.row}>
-                <Text style={styles.rowLabel}>Description</Text>
+                <Text style={styles.rowLabel}>
+                  Description <Text style={styles.required}>*</Text>
+                </Text>
                 <TextInput
                   value={description}
                   onChangeText={setDescription}
@@ -329,6 +396,40 @@ export default function ExpenseForm() {
               <Text style={styles.footerText}>{check.summary}</Text>
               {!check.ok && totalCents !== null && <Text style={styles.footerError}>{check.error}</Text>}
             </View>
+
+            <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.lg }}>
+              <SectionLabel>Receipt</SectionLabel>
+              {receiptPreview ? (
+                <View style={styles.receiptWrap}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() =>
+                      router.push({
+                        pathname: '/expense/receipt',
+                        params: pickedLocalUri ? { uri: receiptPreview } : { path: receiptPath ?? '' },
+                      })
+                    }
+                  >
+                    <Image source={{ uri: receiptPreview }} style={styles.receiptThumb} />
+                  </Pressable>
+                  <View style={{ flexDirection: 'row', gap: spacing.lg, marginTop: spacing.sm }}>
+                    <LinkButton title="Replace" onPress={pickReceipt} />
+                    <LinkButton title="Remove" danger onPress={clearReceipt} />
+                  </View>
+                </View>
+              ) : (
+                <Pressable accessibilityRole="button" onPress={pickReceipt} disabled={receiptBusy} style={styles.receiptEmpty}>
+                  {receiptBusy ? (
+                    <ActivityIndicator />
+                  ) : (
+                    <>
+                      <Ionicons name="camera-outline" size={22} color={colors.muted} />
+                      <Text style={styles.receiptEmptyText}>Take photo or choose image</Text>
+                    </>
+                  )}
+                </Pressable>
+              )}
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
       )}
@@ -365,6 +466,14 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   rowLabel: { width: 96, fontSize: 15, color: colors.muted },
+  required: { color: colors.negative },
+  missingBanner: {
+    textAlign: 'center',
+    fontSize: 13,
+    color: colors.negative,
+    backgroundColor: colors.surface,
+    paddingVertical: 8,
+  },
   rowValue: { flex: 1, fontSize: 16, color: colors.text },
   rowInput: { flex: 1, fontSize: 16, color: colors.text, padding: 0 },
   payerRow: {
@@ -424,4 +533,17 @@ const styles = StyleSheet.create({
   },
   footerText: { fontSize: 14, fontWeight: '600', color: colors.text },
   footerError: { fontSize: 13, color: colors.negative },
+  receiptEmpty: {
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingVertical: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  receiptEmptyText: { fontSize: 14, color: colors.muted },
+  receiptWrap: { alignItems: 'flex-start' },
+  receiptThumb: { width: 96, height: 96, borderRadius: 10, backgroundColor: colors.surface },
 });

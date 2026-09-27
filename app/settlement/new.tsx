@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, EmptyState, LinkButton, PrimaryButton } from '@/components/ui';
 import { fetchGroup, type GroupDetail } from '@/lib/groups';
 import { centsToInput, formatCents, parseDollars } from '@/lib/money';
-import { recordSettlement } from '@/lib/settlements';
+import { PAYMENT_METHODS, recordSettlement, type PaymentMethod } from '@/lib/settlements';
 import { useSession } from '@/lib/session';
 import { colors, spacing } from '@/lib/theme';
 
@@ -31,6 +31,9 @@ export default function SettleUp() {
   const [date, setDate] = useState(new Date());
   const [showDate, setShowDate] = useState(false);
   const [picking, setPicking] = useState<Side | null>(null);
+  const [method, setMethod] = useState<PaymentMethod | null>(null);
+  const [methodOther, setMethodOther] = useState('');
+  const [showMethod, setShowMethod] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -40,15 +43,35 @@ export default function SettleUp() {
   const nameOf = (id: string) =>
     id === me ? 'You' : (group?.members.find((m) => m.userId === id)?.displayName ?? 'Choose someone');
   const amount = parseDollars(amountText);
-  const problem =
-    !payee ? 'Choose who receives the payment.' : payer === payee ? 'Payer and recipient must be different people.' : null;
-  const canSave = !saving && !!payee && payer !== payee && amount !== null && amount > 0;
+  const hasAmount = amount !== null && amount > 0;
+  const hasMethod = method !== null && (method !== 'other' || methodOther.trim().length > 0);
+  const canSave = !saving && !!payee && payer !== payee && hasAmount && hasMethod;
+  const problem = !payee
+    ? 'Choose who receives the payment.'
+    : payer === payee
+      ? 'Payer and recipient must be different people.'
+      : !hasAmount
+        ? 'Enter an amount to save.'
+        : !method
+          ? 'Choose how they paid.'
+          : !hasMethod
+            ? 'Enter the payment method.'
+            : null;
+  const methodLabel = method ? PAYMENT_METHODS.find((m) => m.key === method)?.label : null;
 
   async function handleConfirm() {
-    if (!canSave || amount === null) return;
+    if (!canSave || amount === null || !method) return;
     setSaving(true);
     try {
-      await recordSettlement({ groupId, paidBy: payer, paidTo: payee, amountCents: amount, settledOn: date });
+      await recordSettlement({
+        groupId,
+        paidBy: payer,
+        paidTo: payee,
+        amountCents: amount,
+        settledOn: date,
+        paymentMethod: method,
+        paymentMethodNote: method === 'other' ? methodOther.trim() : undefined,
+      });
       router.back();
     } catch (err) {
       Alert.alert('Could not record payment', messageOf(err));
@@ -100,6 +123,7 @@ export default function SettleUp() {
         <Text style={styles.title}>Settle up</Text>
         <View style={{ width: 60 }} />
       </View>
+      {problem && <Text style={styles.missingBanner}>{problem}</Text>}
 
       {loadError ? (
         <View style={styles.center}>
@@ -157,10 +181,54 @@ export default function SettleUp() {
               <Text style={styles.rowLabel}>Group</Text>
               <Text style={styles.rowValue}>{group.name}</Text>
             </View>
+            <Pressable style={styles.row} onPress={() => setShowMethod((v) => !v)} accessibilityRole="button">
+              <Text style={styles.rowLabel}>Method</Text>
+              <Text style={[styles.rowValue, !methodLabel && { color: colors.muted }]}>
+                {method === 'other' && methodOther ? methodOther : (methodLabel ?? 'Choose one')}
+              </Text>
+              <Ionicons name={showMethod ? 'chevron-down' : 'chevron-forward'} size={16} color={colors.muted} />
+            </Pressable>
+            {showMethod && (
+              <View>
+                {PAYMENT_METHODS.map((m) => (
+                  <Pressable
+                    key={m.key}
+                    style={styles.optionRow}
+                    onPress={() => {
+                      setMethod(m.key);
+                      if (m.key !== 'other') {
+                        setMethodOther('');
+                        setShowMethod(false);
+                      }
+                    }}
+                  >
+                    <Text style={styles.optionName}>{m.label}</Text>
+                    {method === m.key && <Ionicons name="checkmark" size={18} color={colors.primary} />}
+                  </Pressable>
+                ))}
+                {method === 'other' && (
+                  <View style={styles.otherWrap}>
+                    <Text style={styles.otherLabel}>
+                      Payment method <Text style={styles.required}>*</Text>
+                    </Text>
+                    <TextInput
+                      value={methodOther}
+                      onChangeText={setMethodOther}
+                      placeholder="Type a payment method"
+                      placeholderTextColor={colors.muted}
+                      maxLength={40}
+                      autoFocus
+                      returnKeyType="done"
+                      onSubmitEditing={() => setShowMethod(false)}
+                      style={[styles.otherInput, !methodOther.trim() && styles.otherInputRequired]}
+                    />
+                  </View>
+                )}
+              </View>
+            )}
           </View>
 
           <View style={{ padding: spacing.lg, gap: spacing.md }}>
-            {problem && amountText.length > 0 ? <Text style={styles.problem}>{problem}</Text> : null}
             <PrimaryButton title="Confirm payment" onPress={handleConfirm} disabled={!canSave} loading={saving} />
             <Text style={styles.note}>
               This records the payment{amount ? ` of ${formatCents(amount)}` : ''}. No money moves through Shakedown.
@@ -199,6 +267,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   optionName: { flex: 1, fontSize: 15, color: colors.text },
+  otherWrap: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, backgroundColor: colors.surface },
+  otherLabel: { fontSize: 13, color: colors.muted, marginBottom: 6 },
+  required: { color: colors.negative },
+  otherInput: {
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: colors.text,
+    backgroundColor: colors.bg,
+  },
+  otherInputRequired: { borderColor: colors.negative },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginHorizontal: spacing.lg },
   amountRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', paddingVertical: spacing.xl },
   currency: { fontSize: 28, color: colors.muted, marginRight: 4 },
@@ -215,6 +297,12 @@ const styles = StyleSheet.create({
   },
   rowLabel: { width: 96, fontSize: 15, color: colors.muted },
   rowValue: { flex: 1, fontSize: 16, color: colors.text },
-  problem: { fontSize: 13, color: colors.negative },
+  missingBanner: {
+    textAlign: 'center',
+    fontSize: 13,
+    color: colors.negative,
+    backgroundColor: colors.surface,
+    paddingVertical: 8,
+  },
   note: { fontSize: 13, color: colors.muted, textAlign: 'center' },
 });
