@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,8 +7,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, EmptyState, LinkButton, SectionLabel } from '@/components/ui';
 import { deleteExpense, fetchExpense, fromDateString, type ExpenseDetail } from '@/lib/expenses';
 import { formatCents } from '@/lib/money';
+import { getReceiptUrl } from '@/lib/receipts';
 import { useSession } from '@/lib/session';
 import { colors, spacing } from '@/lib/theme';
+
+function ReceiptThumb({ path }: { path: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    getReceiptUrl(path).then(setUrl, () => {});
+  }, [path]);
+  return url ? <Image source={{ uri: url }} style={styles.receiptThumb} /> : <View style={styles.receiptThumb} />;
+}
 
 function messageOf(err: unknown) {
   return err instanceof Error ? err.message : 'Something went wrong. Please try again.';
@@ -136,6 +145,20 @@ export default function ExpenseScreen() {
             ))}
           </View>
 
+          {expense.receiptPath && (
+            <>
+              <SectionLabel>Receipt</SectionLabel>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => router.push({ pathname: '/expense/receipt', params: { path: expense.receiptPath! } })}
+                style={styles.receiptRow}
+              >
+                <ReceiptThumb path={expense.receiptPath} />
+                <Text style={styles.receiptTapText}>tap to view</Text>
+              </Pressable>
+            </>
+          )}
+
           {mine ? (
             <View style={{ alignItems: 'center', marginTop: spacing.xl }}>
               <LinkButton title={busy ? 'Deleting…' : 'Delete expense'} danger onPress={confirmDelete} />
@@ -175,4 +198,7 @@ const styles = StyleSheet.create({
   splitSub: { fontSize: 13, color: colors.muted },
   splitAmount: { fontSize: 16, fontWeight: '700', color: colors.text },
   note: { marginTop: spacing.xl, textAlign: 'center', fontSize: 14, color: colors.muted },
+  receiptRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  receiptThumb: { width: 72, height: 72, borderRadius: 10, backgroundColor: colors.surface },
+  receiptTapText: { fontSize: 14, color: colors.muted },
 });

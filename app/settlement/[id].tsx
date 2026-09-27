@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { EmptyState, LinkButton } from '@/components/ui';
 import { fromDateString } from '@/lib/expenses';
 import { formatCents } from '@/lib/money';
-import { deleteSettlement, fetchSettlement, type Settlement } from '@/lib/settlements';
+import { deleteSettlement, fetchSettlement, paymentMethodLabel, type Settlement } from '@/lib/settlements';
 import { useSession } from '@/lib/session';
 import { colors, spacing } from '@/lib/theme';
 
@@ -88,6 +88,7 @@ export default function SettlementScreen() {
           <Text style={styles.meta}>
             {fromDateString(s.settledOn).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} ·{' '}
             {s.groupName}
+            {paymentMethodLabel(s.paymentMethod, s.paymentMethodNote) && ` · via ${paymentMethodLabel(s.paymentMethod, s.paymentMethodNote)}`}
           </Text>
           <Text style={styles.note}>
             Recorded by {who(s.createdBy, s.creatorName)}. Balances updated immediately.

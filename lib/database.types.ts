@@ -330,6 +330,8 @@ export type Database = {
           id: string
           paid_by: string
           paid_to: string
+          payment_method: Database["public"]["Enums"]["payment_method"] | null
+          payment_method_note: string | null
           settled_on: string
         }
         Insert: {
@@ -341,6 +343,8 @@ export type Database = {
           id?: string
           paid_by: string
           paid_to: string
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          payment_method_note?: string | null
           settled_on?: string
         }
         Update: {
@@ -352,6 +356,8 @@ export type Database = {
           id?: string
           paid_by?: string
           paid_to?: string
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          payment_method_note?: string | null
           settled_on?: string
         }
         Relationships: [
@@ -433,6 +439,8 @@ export type Database = {
           p_group_id: string
           p_paid_by: string
           p_paid_to: string
+          p_payment_method?: Database["public"]["Enums"]["payment_method"]
+          p_payment_method_note?: string
           p_settled_on?: string
         }
         Returns: string
@@ -461,6 +469,14 @@ export type Database = {
     Enums: {
       group_kind: "group" | "trip"
       member_role: "owner" | "member"
+      payment_method:
+        | "venmo"
+        | "cash"
+        | "paypal"
+        | "zelle"
+        | "bank_transfer"
+        | "cash_app"
+        | "other"
       split_method: "equal" | "exact" | "percent"
     }
     CompositeTypes: {
@@ -591,6 +607,15 @@ export const Constants = {
     Enums: {
       group_kind: ["group", "trip"],
       member_role: ["owner", "member"],
+      payment_method: [
+        "venmo",
+        "cash",
+        "paypal",
+        "zelle",
+        "bank_transfer",
+        "cash_app",
+        "other",
+      ],
       split_method: ["equal", "exact", "percent"],
     },
   },
