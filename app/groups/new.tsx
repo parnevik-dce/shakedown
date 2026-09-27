@@ -1,58 +1,60 @@
-import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { SectionLabel } from '@/components/ui';
-import { createGroup } from '@/lib/groups';
 import { colors, spacing } from '@/lib/theme';
 
-export default function NewGroup() {
-  const [name, setName] = useState('');
-  const [busy, setBusy] = useState(false);
-  const canCreate = name.trim().length > 0 && !busy;
+function ChoiceCard({
+  icon,
+  title,
+  subtitle,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
+      <View style={styles.cardIcon}>
+        <Ionicons name={icon} size={26} color={colors.primary} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.cardTitle}>{title}</Text>
+        <Text style={styles.cardSubtitle}>{subtitle}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+    </Pressable>
+  );
+}
 
-  async function handleCreate() {
-    setBusy(true);
-    try {
-      const id = await createGroup(name);
-      router.replace({ pathname: '/groups/[id]', params: { id, tab: 'members' } });
-    } catch (err) {
-      Alert.alert('Could not create group', err instanceof Error ? err.message : 'Please try again.');
-      setBusy(false);
-    }
-  }
-
+/** The choice between a plain group and a Trip (extra metadata: dates, cover). */
+export default function NewGroupOrTrip() {
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <View style={styles.nav}>
-          <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={8}>
-            <Text style={styles.navAction}>Cancel</Text>
-          </Pressable>
-          <Text style={styles.navTitle}>New group</Text>
-          <Pressable accessibilityRole="button" onPress={handleCreate} disabled={!canCreate} hitSlop={8}>
-            <Text style={[styles.navAction, styles.navPrimary, !canCreate && { opacity: 0.4 }]}>Create</Text>
-          </Pressable>
-        </View>
-        <View style={styles.body}>
-          <SectionLabel>Group name</SectionLabel>
-          <TextInput
-            autoFocus
-            value={name}
-            onChangeText={setName}
-            placeholder="Apt 4B"
-            placeholderTextColor={colors.muted}
-            maxLength={100}
-            returnKeyType="done"
-            onSubmitEditing={() => canCreate && handleCreate()}
-            style={styles.input}
-          />
-          <Text style={styles.hint}>
-            After you create it, you'll get an invite link and code to share with the people in your group.
-          </Text>
-        </View>
-      </KeyboardAvoidingView>
+      <View style={styles.nav}>
+        <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={8}>
+          <Text style={styles.cancel}>Cancel</Text>
+        </Pressable>
+        <Text style={styles.title}>New</Text>
+        <View style={{ width: 60 }} />
+      </View>
+      <View style={styles.body}>
+        <ChoiceCard
+          icon="home-outline"
+          title="Group"
+          subtitle="Ongoing — roommates, couples, a friend group"
+          onPress={() => router.push('/groups/new-group')}
+        />
+        <ChoiceCard
+          icon="airplane-outline"
+          title="Trip"
+          subtitle="Has dates and a cover image"
+          onPress={() => router.push('/groups/trip')}
+        />
+      </View>
     </SafeAreaView>
   );
 }
@@ -68,18 +70,27 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  navTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
-  navAction: { fontSize: 17, color: colors.muted },
-  navPrimary: { color: colors.primary, fontWeight: '700' },
-  body: { paddingHorizontal: spacing.lg },
-  input: {
+  title: { fontSize: 17, fontWeight: '700', color: colors.text },
+  cancel: { fontSize: 17, color: colors.muted, width: 60 },
+  body: { padding: spacing.lg, gap: spacing.md },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 14,
-    fontSize: 17,
-    color: colors.text,
+    borderRadius: 14,
+    padding: spacing.lg,
   },
-  hint: { marginTop: spacing.md, fontSize: 14, color: colors.muted, lineHeight: 20 },
+  cardPressed: { backgroundColor: colors.surface },
+  cardIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: colors.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
+  cardSubtitle: { fontSize: 13, color: colors.muted, marginTop: 2 },
 });

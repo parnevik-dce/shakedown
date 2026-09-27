@@ -1,12 +1,13 @@
-import { useCallback, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { FlatList, Image, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState, LinkButton, PrimaryButton } from '@/components/ui';
-import { fetchMyGroups, type GroupSummary } from '@/lib/groups';
+import { fetchMyGroups, type GroupSummary, type TripIcon } from '@/lib/groups';
 import { formatCents } from '@/lib/money';
+import { getTripCoverUrl } from '@/lib/tripCovers';
 import { useSession } from '@/lib/session';
 import { colors, spacing } from '@/lib/theme';
 
@@ -21,6 +22,11 @@ function GroupRow({ group }: { group: GroupSummary }) {
   const dates = group.kind === 'trip' ? formatTripDates(group.startDate, group.endDate) : null;
   const members = `${group.memberCount} member${group.memberCount === 1 ? '' : 's'}`;
   const net = group.myNetCents;
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (group.coverImagePath) getTripCoverUrl(group.coverImagePath).then(setCoverUrl).catch(() => {});
+  }, [group.coverImagePath]);
 
   return (
     <Pressable
@@ -29,7 +35,15 @@ function GroupRow({ group }: { group: GroupSummary }) {
       style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surface }]}
     >
       <View style={styles.thumb}>
-        <Ionicons name={group.kind === 'trip' ? 'airplane-outline' : 'home-outline'} size={22} color={colors.primary} />
+        {coverUrl ? (
+          <Image source={{ uri: coverUrl }} style={styles.thumbImage} />
+        ) : (
+          <Ionicons
+            name={(group.icon as TripIcon) ?? (group.kind === 'trip' ? 'airplane-outline' : 'home-outline')}
+            size={22}
+            color={colors.primary}
+          />
+        )}
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.rowTitle} numberOfLines={1}>
@@ -161,7 +175,16 @@ const styles = StyleSheet.create({
   },
   center: { flex: 1, justifyContent: 'center', paddingBottom: 60 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: 14 },
-  thumb: { width: 46, height: 46, borderRadius: 12, backgroundColor: colors.tint, alignItems: 'center', justifyContent: 'center' },
+  thumb: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: colors.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  thumbImage: { width: '100%', height: '100%' },
   rowTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   rowSub: { fontSize: 13, color: colors.muted, marginTop: 2 },
   amount: { fontSize: 16, fontWeight: '700', color: colors.text },

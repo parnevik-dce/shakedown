@@ -24,6 +24,8 @@ function RootNavigator() {
       <Stack.Protected guard={!!session}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="groups/new" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="groups/new-group" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="groups/trip" options={{ presentation: 'modal' }} />
         <Stack.Screen name="groups/[id]" />
         <Stack.Screen name="expense/new" options={{ presentation: 'modal' }} />
         <Stack.Screen name="expense/[id]" />
