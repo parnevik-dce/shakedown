@@ -125,6 +125,8 @@ export type ActivityItem = {
   createdAt: string;
   /** For expense entries whose expense still exists: what it means for me. */
   mine: { kind: 'lent' | 'owe' | 'none'; cents: number } | null;
+  /** For settlement entries: who paid whom. */
+  settlement: { paidBy: string; payerName: string; paidTo: string; payeeName: string; deleted: boolean } | null;
 };
 
 export type GroupActivity = {
@@ -135,7 +137,7 @@ export type GroupActivity = {
 };
 
 export async function fetchGroupActivity(groupId: string, myId: string): Promise<GroupActivity> {
-  const [log, expenses, balance] = await Promise.all([
+  const [log, expenses, balance, settlements] = await Promise.all([
     supabase
       .from('activity_log')
       .select(
@@ -151,7 +153,26 @@ export async function fetchGroupActivity(groupId: string, myId: string): Promise
       .eq('group_id', groupId)
       .is('deleted_at', null),
     supabase.from('group_net_balances').select('net_cents').eq('group_id', groupId).eq('user_id', myId).maybeSingle(),
+    supabase
+      .from('settlements')
+      .select(
+        'id, paid_by, paid_to, deleted_at, payer:profiles!settlements_paid_by_fkey(display_name), payee:profiles!settlements_paid_to_fkey(display_name)'
+      )
+      .eq('group_id', groupId),
   ]);
+
+  const settlementById = new Map(
+    unwrap(settlements).map((s) => [
+      s.id,
+      {
+        paidBy: s.paid_by,
+        payerName: s.payer?.display_name ?? 'Someone',
+        paidTo: s.paid_to,
+        payeeName: s.payee?.display_name ?? 'Someone',
+        deleted: s.deleted_at !== null,
+      },
+    ])
+  );
 
   const mineByExpense = new Map<string, NonNullable<ActivityItem['mine']>>();
   const liveExpenses = unwrap(expenses);
@@ -181,6 +202,7 @@ export async function fetchGroupActivity(groupId: string, myId: string): Promise
       summary: r.summary,
       createdAt: r.created_at,
       mine: r.entity_type === 'expense' ? (mineByExpense.get(r.entity_id) ?? null) : null,
+      settlement: r.entity_type === 'settlement' ? (settlementById.get(r.entity_id) ?? null) : null,
     })),
   };
 }
