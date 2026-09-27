@@ -3,10 +3,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import * as Crypto from 'expo-crypto';
 
-// React Native has no crypto.subtle; without it supabase-js downgrades PKCE to the
-// weaker "plain" challenge. Shim just the SHA-256 digest it needs.
+import type { Database } from './database.types';
+
+// React Native has no Web Crypto. Without it supabase-js builds its PKCE verifier from
+// Math.random and downgrades the challenge to "plain". Shim the two pieces it uses:
+// getRandomValues (verifier) and subtle.digest (SHA-256 challenge). Once `crypto`
+// exists, supabase-js calls both, so both must be defined.
 if (typeof globalThis.crypto === 'undefined') {
   Object.defineProperty(globalThis, 'crypto', { value: {}, configurable: true });
+}
+if (typeof globalThis.crypto.getRandomValues !== 'function') {
+  Object.defineProperty(globalThis.crypto, 'getRandomValues', {
+    value: <T extends ArrayBufferView>(array: T): T => Crypto.getRandomValues(array as never) as unknown as T,
+    configurable: true,
+  });
 }
 if (!globalThis.crypto.subtle) {
   Object.defineProperty(globalThis.crypto, 'subtle', {
@@ -27,7 +37,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,

@@ -1,0 +1,133 @@
+import { supabase } from './supabase';
+
+export type GroupSummary = {
+  id: string;
+  name: string;
+  kind: 'group' | 'trip';
+  startDate: string | null;
+  endDate: string | null;
+  memberCount: number;
+  /** My net balance in this group, in cents. Positive = I'm owed. */
+  myNetCents: number;
+};
+
+export type Member = {
+  userId: string;
+  role: 'owner' | 'member';
+  displayName: string;
+  avatarUrl: string | null;
+  email: string | null;
+};
+
+export type GroupDetail = {
+  id: string;
+  name: string;
+  kind: 'group' | 'trip';
+  members: Member[];
+};
+
+function unwrap<T>(result: { data: T; error: { message: string } | null }): NonNullable<T> {
+  if (result.error) throw new Error(result.error.message);
+  return result.data as NonNullable<T>;
+}
+
+export async function fetchMyGroups(userId: string): Promise<GroupSummary[]> {
+  const memberships = unwrap(
+    await supabase
+      .from('group_members')
+      .select('groups(id, name, kind, start_date, end_date, created_at)')
+      .eq('user_id', userId)
+      .is('left_at', null)
+  );
+
+  const groups = memberships
+    .map((m) => m.groups)
+    .filter((g): g is NonNullable<typeof g> => g !== null)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  if (groups.length === 0) return [];
+
+  const ids = groups.map((g) => g.id);
+  const [members, balances] = await Promise.all([
+    supabase.from('group_members').select('group_id').in('group_id', ids).is('left_at', null),
+    supabase.from('group_net_balances').select('group_id, net_cents').eq('user_id', userId).in('group_id', ids),
+  ]);
+
+  const counts = new Map<string, number>();
+  for (const row of unwrap(members)) counts.set(row.group_id, (counts.get(row.group_id) ?? 0) + 1);
+  const nets = new Map<string, number>();
+  for (const row of unwrap(balances)) {
+    if (row.group_id && row.net_cents !== null) nets.set(row.group_id, Number(row.net_cents));
+  }
+
+  return groups.map((g) => ({
+    id: g.id,
+    name: g.name,
+    kind: g.kind,
+    startDate: g.start_date,
+    endDate: g.end_date,
+    memberCount: counts.get(g.id) ?? 1,
+    myNetCents: nets.get(g.id) ?? 0,
+  }));
+}
+
+export async function fetchGroup(groupId: string): Promise<GroupDetail> {
+  const [group, members] = await Promise.all([
+    supabase.from('groups').select('id, name, kind').eq('id', groupId).single(),
+    supabase
+      .from('group_members')
+      .select('user_id, role, joined_at, profiles(display_name, avatar_url, email)')
+      .eq('group_id', groupId)
+      .is('left_at', null)
+      .order('joined_at'),
+  ]);
+  const g = unwrap(group);
+  return {
+    id: g.id,
+    name: g.name,
+    kind: g.kind,
+    members: unwrap(members).map((m) => ({
+      userId: m.user_id,
+      role: m.role,
+      displayName: m.profiles?.display_name ?? 'Member',
+      avatarUrl: m.profiles?.avatar_url ?? null,
+      email: m.profiles?.email ?? null,
+    })),
+  };
+}
+
+export async function createGroup(name: string): Promise<string> {
+  const row = unwrap(await supabase.from('groups').insert({ name: name.trim() }).select('id').single());
+  return row.id;
+}
+
+/** Returns a currently valid invite code for the group, creating one if needed. */
+export async function getOrCreateInviteCode(groupId: string): Promise<string> {
+  const existing = unwrap(
+    await supabase
+      .from('group_invites')
+      .select('code')
+      .eq('group_id', groupId)
+      .is('revoked_at', null)
+      .gt('expires_at', new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+  );
+  if (existing.length > 0) return existing[0].code;
+  return unwrap(await supabase.from('group_invites').insert({ group_id: groupId }).select('code').single()).code;
+}
+
+export async function joinGroupWithCode(code: string): Promise<string> {
+  return unwrap(await supabase.rpc('join_group_with_code', { p_code: code }));
+}
+
+export async function leaveGroup(groupId: string): Promise<void> {
+  unwrap(await supabase.rpc('leave_group', { p_group: groupId }));
+}
+
+export async function removeMember(groupId: string, userId: string): Promise<void> {
+  unwrap(await supabase.rpc('remove_group_member', { p_group: groupId, p_user: userId }));
+}
+
+export function inviteLink(code: string): string {
+  return `shakedown://join/${code}`;
+}
