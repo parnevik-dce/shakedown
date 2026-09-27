@@ -113,6 +113,53 @@ export async function deleteExpense(id: string): Promise<void> {
   unwrap(await supabase.rpc('delete_expense', { p_expense_id: id }));
 }
 
+export type ExpenseListItem = {
+  id: string;
+  description: string;
+  amountCents: number;
+  paidBy: string;
+  payerName: string;
+  expenseDate: string;
+  hasReceipt: boolean;
+  /** What this expense means for me: what I lent, or what I owe. */
+  mine: { kind: 'lent' | 'owe' | 'none'; cents: number };
+};
+
+/** Just the live expenses for a group — no edits/deletions/settlements, unlike the activity feed. */
+export async function fetchGroupExpenseList(groupId: string, myId: string): Promise<ExpenseListItem[]> {
+  const rows = unwrap(
+    await supabase
+      .from('expenses')
+      .select(
+        'id, description, amount_cents, paid_by, expense_date, receipt_path, expense_splits(user_id, owed_cents), payer:profiles!expenses_paid_by_fkey(display_name)'
+      )
+      .eq('group_id', groupId)
+      .is('deleted_at', null)
+      .order('expense_date', { ascending: false })
+      .order('created_at', { ascending: false })
+  );
+
+  return rows.map((e) => {
+    const myShare = Number(e.expense_splits.find((s) => s.user_id === myId)?.owed_cents ?? 0);
+    const mine: ExpenseListItem['mine'] =
+      e.paid_by === myId
+        ? { kind: 'lent', cents: Number(e.amount_cents) - myShare }
+        : myShare > 0
+          ? { kind: 'owe', cents: myShare }
+          : { kind: 'none', cents: 0 };
+    return {
+      id: e.id,
+      description: e.description,
+      amountCents: Number(e.amount_cents),
+      paidBy: e.paid_by,
+      payerName: e.payer?.display_name ?? 'Someone',
+      expenseDate: e.expense_date,
+      hasReceipt: e.receipt_path !== null,
+      mine,
+    };
+  });
+}
+
 export type ActivityItem = {
   id: number;
   action: 'expense_added' | 'expense_edited' | 'expense_deleted' | 'settlement_added' | 'settlement_deleted';

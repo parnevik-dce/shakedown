@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -8,7 +8,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, EmptyState, LinkButton, PrimaryButton, SectionLabel } from '@/components/ui';
 import { BalancesTab } from '@/components/BalancesTab';
 import { fetchGroupBalances, type GroupBalances } from '@/lib/balances';
-import { fetchGroupActivity, type ActivityItem, type GroupActivity } from '@/lib/expenses';
+import {
+  fetchGroupActivity,
+  fetchGroupExpenseList,
+  fromDateString,
+  type ActivityItem,
+  type ExpenseListItem,
+  type GroupActivity,
+} from '@/lib/expenses';
 import { formatCents } from '@/lib/money';
 import { formatWhen } from '@/lib/time';
 import {
@@ -18,11 +25,13 @@ import {
   leaveGroup,
   removeMember,
   type GroupDetail,
+  type TripIcon,
 } from '@/lib/groups';
+import { getTripCoverUrl } from '@/lib/tripCovers';
 import { useSession } from '@/lib/session';
 import { colors, spacing } from '@/lib/theme';
 
-type Tab = 'activity' | 'balances' | 'members';
+type Tab = 'activity' | 'expenses' | 'balances' | 'members';
 
 function messageOf(err: unknown) {
   return err instanceof Error ? err.message : 'Something went wrong. Please try again.';
@@ -83,6 +92,37 @@ function ActivityRow({ item, me }: { item: ActivityItem; me: string }) {
   );
 }
 
+function ExpenseRow({ item, me }: { item: ExpenseListItem; me: string }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => router.push({ pathname: '/expense/[id]', params: { id: item.id } })}
+      style={({ pressed }) => [styles.feedRow, pressed && { backgroundColor: colors.surface }]}
+    >
+      <Avatar name={item.payerName} size={38} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.feedTitle} numberOfLines={2}>
+          {item.description}
+        </Text>
+        <Text style={styles.feedSub}>
+          {item.paidBy === me ? 'You' : item.payerName} paid ·{' '}
+          {fromDateString(item.expenseDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          {item.hasReceipt ? ' · receipt' : ''}
+        </Text>
+      </View>
+      <View style={{ alignItems: 'flex-end' }}>
+        <Text style={styles.feedAmount}>{formatCents(item.amountCents)}</Text>
+        {item.mine.kind === 'lent' && (
+          <Text style={[styles.feedSub, { color: colors.positive }]}>you lent {formatCents(item.mine.cents)}</Text>
+        )}
+        {item.mine.kind === 'owe' && (
+          <Text style={[styles.feedSub, { color: colors.negative }]}>you owe {formatCents(item.mine.cents)}</Text>
+        )}
+      </View>
+    </Pressable>
+  );
+}
+
 function AddBar({ groupId }: { groupId: string }) {
   return (
     <View style={styles.addBar}>
@@ -102,21 +142,30 @@ export default function GroupScreen() {
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [activity, setActivity] = useState<GroupActivity | null>(null);
+  const [expenseList, setExpenseList] = useState<ExpenseListItem[] | null>(null);
   const [balances, setBalances] = useState<GroupBalances | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>(initialTab === 'members' ? 'members' : 'activity');
+  const [tab, setTab] = useState<Tab>(initialTab === 'members' ? 'members' : 'expenses');
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (group?.coverImagePath) getTripCoverUrl(group.coverImagePath).then(setCoverUrl).catch(() => {});
+    else setCoverUrl(null);
+  }, [group?.coverImagePath]);
 
   const load = useCallback(async () => {
     try {
-      const [g, c, a, b] = await Promise.all([
+      const [g, c, a, e, b] = await Promise.all([
         fetchGroup(id),
         getOrCreateInviteCode(id),
         fetchGroupActivity(id, me),
+        fetchGroupExpenseList(id, me),
         fetchGroupBalances(id),
       ]);
       setGroup(g);
       setCode(c);
       setActivity(a);
+      setExpenseList(e);
       setBalances(b);
       setError(null);
     } catch (err) {
@@ -189,7 +238,18 @@ export default function GroupScreen() {
         <Text style={styles.navTitle} numberOfLines={1}>
           {group?.name ?? ''}
         </Text>
-        <View style={{ width: 70 }} />
+        <View style={[styles.back, { justifyContent: 'flex-end' }]}>
+          {group?.kind === 'trip' && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Trip info"
+              hitSlop={8}
+              onPress={() => router.push({ pathname: '/groups/trip', params: { groupId: id } })}
+            >
+              <Ionicons name="information-circle-outline" size={24} color={colors.primary} />
+            </Pressable>
+          )}
+        </View>
       </View>
 
       {error ? (
@@ -205,6 +265,23 @@ export default function GroupScreen() {
       ) : (
         <>
           <View style={styles.summary}>
+            {group.kind === 'trip' && (
+              <View style={styles.tripHeader}>
+                <View style={styles.tripThumb}>
+                  {coverUrl ? (
+                    <Image source={{ uri: coverUrl }} style={styles.tripThumbImage} />
+                  ) : (
+                    <Ionicons name={(group.icon as TripIcon) ?? 'airplane-outline'} size={22} color={colors.primary} />
+                  )}
+                </View>
+                {group.startDate && group.endDate && (
+                  <Text style={styles.tripDates}>
+                    {fromDateString(group.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} –{' '}
+                    {fromDateString(group.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </Text>
+                )}
+              </View>
+            )}
             <Text style={styles.summarySub}>
               {group.members.length} member{group.members.length === 1 ? '' : 's'} ·{' '}
               {activity?.expenseCount
@@ -224,17 +301,36 @@ export default function GroupScreen() {
           </View>
 
           <View style={styles.tabs}>
-            {(['activity', 'balances', 'members'] as const).map((t) => (
+            {(['expenses', 'activity', 'balances', 'members'] as const).map((t) => (
               <Pressable key={t} accessibilityRole="tab" onPress={() => setTab(t)} style={styles.tab}>
                 <Text style={[styles.tabText, tab === t && styles.tabActive]}>
-                  {t === 'activity' ? 'Activity' : t === 'balances' ? 'Balances' : 'Members'}
+                  {t === 'activity' ? 'Activity' : t === 'expenses' ? 'Expenses' : t === 'balances' ? 'Balances' : 'Members'}
                 </Text>
                 {tab === t && <View style={styles.tabUnderline} />}
               </Pressable>
             ))}
           </View>
 
-          {tab === 'activity' ? (
+          {tab === 'expenses' ? (
+            <View style={{ flex: 1 }}>
+              {expenseList && expenseList.length === 0 ? (
+                <View style={styles.center}>
+                  <EmptyState
+                    icon="receipt-outline"
+                    title="No expenses yet"
+                    message="Add the first one and it'll show up here."
+                  />
+                </View>
+              ) : (
+                <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
+                  {expenseList?.map((item) => (
+                    <ExpenseRow key={item.id} item={item} me={me} />
+                  ))}
+                </ScrollView>
+              )}
+              <AddBar groupId={id} />
+            </View>
+          ) : tab === 'activity' ? (
             <View style={{ flex: 1 }}>
               {activity && activity.items.length === 0 ? (
                 <View style={styles.center}>
@@ -346,11 +442,23 @@ const styles = StyleSheet.create({
   backText: { fontSize: 17, color: colors.primary },
   navTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '700', color: colors.text },
   summary: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
+  tripHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.sm },
+  tripThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: colors.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  tripThumbImage: { width: '100%', height: '100%' },
+  tripDates: { fontSize: 14, fontWeight: '600', color: colors.text },
   summarySub: { fontSize: 13, color: colors.muted },
   summaryTitle: { fontSize: 28, fontWeight: '800', color: colors.text, marginTop: 2 },
   tabs: {
     flexDirection: 'row',
-    gap: spacing.xl,
+    gap: spacing.lg,
     paddingHorizontal: spacing.lg,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,

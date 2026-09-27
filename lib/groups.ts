@@ -1,3 +1,4 @@
+import { toDateString } from './expenses';
 import { supabase } from './supabase';
 
 export type GroupSummary = {
@@ -6,10 +7,25 @@ export type GroupSummary = {
   kind: 'group' | 'trip';
   startDate: string | null;
   endDate: string | null;
+  coverImagePath: string | null;
+  icon: string | null;
   memberCount: number;
   /** My net balance in this group, in cents. Positive = I'm owed. */
   myNetCents: number;
 };
+
+/** Small preset of trip icons, used when a member doesn't set a cover photo. */
+export const TRIP_ICONS = [
+  'airplane-outline',
+  'sunny-outline',
+  'snow-outline',
+  'boat-outline',
+  'car-outline',
+  'gift-outline',
+  'star-outline',
+  'home-outline',
+] as const;
+export type TripIcon = (typeof TRIP_ICONS)[number];
 
 export type Member = {
   userId: string;
@@ -23,6 +39,10 @@ export type GroupDetail = {
   id: string;
   name: string;
   kind: 'group' | 'trip';
+  startDate: string | null;
+  endDate: string | null;
+  coverImagePath: string | null;
+  icon: string | null;
   members: Member[];
 };
 
@@ -35,7 +55,7 @@ export async function fetchMyGroups(userId: string): Promise<GroupSummary[]> {
   const memberships = unwrap(
     await supabase
       .from('group_members')
-      .select('groups(id, name, kind, start_date, end_date, created_at)')
+      .select('groups(id, name, kind, start_date, end_date, cover_image_path, icon, created_at)')
       .eq('user_id', userId)
       .is('left_at', null)
   );
@@ -65,6 +85,8 @@ export async function fetchMyGroups(userId: string): Promise<GroupSummary[]> {
     kind: g.kind,
     startDate: g.start_date,
     endDate: g.end_date,
+    coverImagePath: g.cover_image_path,
+    icon: g.icon,
     memberCount: counts.get(g.id) ?? 1,
     myNetCents: nets.get(g.id) ?? 0,
   }));
@@ -72,7 +94,7 @@ export async function fetchMyGroups(userId: string): Promise<GroupSummary[]> {
 
 export async function fetchGroup(groupId: string): Promise<GroupDetail> {
   const [group, members] = await Promise.all([
-    supabase.from('groups').select('id, name, kind').eq('id', groupId).single(),
+    supabase.from('groups').select('id, name, kind, start_date, end_date, cover_image_path, icon').eq('id', groupId).single(),
     supabase
       .from('group_members')
       .select('user_id, role, joined_at, profiles(display_name, avatar_url, email)')
@@ -85,6 +107,10 @@ export async function fetchGroup(groupId: string): Promise<GroupDetail> {
     id: g.id,
     name: g.name,
     kind: g.kind,
+    startDate: g.start_date,
+    endDate: g.end_date,
+    coverImagePath: g.cover_image_path,
+    icon: g.icon,
     members: unwrap(members).map((m) => ({
       userId: m.user_id,
       role: m.role,
@@ -98,6 +124,44 @@ export async function fetchGroup(groupId: string): Promise<GroupDetail> {
 export async function createGroup(name: string): Promise<string> {
   const row = unwrap(await supabase.from('groups').insert({ name: name.trim() }).select('id').single());
   return row.id;
+}
+
+export async function createTrip(input: { name: string; startDate: Date; endDate: Date; icon?: TripIcon }): Promise<string> {
+  const row = unwrap(
+    await supabase
+      .from('groups')
+      .insert({
+        name: input.name.trim(),
+        kind: 'trip',
+        start_date: toDateString(input.startDate),
+        end_date: toDateString(input.endDate),
+        icon: input.icon ?? null,
+      })
+      .select('id')
+      .single()
+  );
+  return row.id;
+}
+
+/** Any active member may edit a trip's details (name/dates/cover/icon). */
+export async function updateTrip(
+  groupId: string,
+  input: { name: string; startDate: Date; endDate: Date; coverImagePath?: string | null; icon?: string | null }
+): Promise<void> {
+  unwrap(
+    await supabase
+      .from('groups')
+      .update({
+        name: input.name.trim(),
+        start_date: toDateString(input.startDate),
+        end_date: toDateString(input.endDate),
+        ...(input.coverImagePath !== undefined && { cover_image_path: input.coverImagePath }),
+        ...(input.icon !== undefined && { icon: input.icon }),
+      })
+      .eq('id', groupId)
+      .select('id')
+      .single()
+  );
 }
 
 /** Returns a currently valid invite code for the group, creating one if needed. */
