@@ -184,6 +184,12 @@ await ok('settlement with no payment method still works (nullable)', async () =>
   await as(A, `select record_settlement($1,$2,$3,500)`, [G, A, B]);
 });
 
+await ok('trip-covers bucket allows gif', async () => {
+  await db.exec('reset role');
+  const r = await db.query(`select allowed_mime_types from storage.buckets where id='trip-covers'`);
+  if (!r.rows[0].allowed_mime_types.includes('image/gif')) throw new Error('gif not allowed');
+});
+
 await ok('storage helpers', async () => {
   const r = await as(A, `select storage_group_id('${G}/x.jpg') g, storage_group_id('junk/x') j, can_write_receipt('${G}/${E}.jpg') w`);
   eq(r.rows[0].g, G, 'gid'); eq(r.rows[0].j, null, 'junk');
