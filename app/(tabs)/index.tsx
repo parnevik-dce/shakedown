@@ -99,7 +99,10 @@ export default function GroupsScreen() {
     <ScreenBackground>
       <SafeAreaView style={styles.screen} edges={['top']}>
         <View style={styles.header}>
-          <Text style={styles.title}>Groups</Text>
+          <View>
+            <Text style={styles.brand}>Shakedown</Text>
+            <Text style={styles.title}>Groups</Text>
+          </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Create a group"
@@ -166,6 +169,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
+  },
+  brand: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    color: colors.accent,
+    marginBottom: 2,
   },
   title: { fontSize: 32, fontWeight: '800', color: colors.text, letterSpacing: -0.5 },
   plus: {
