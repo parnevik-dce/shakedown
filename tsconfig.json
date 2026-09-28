@@ -2,6 +2,11 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    // Lets lib/*.ts files import sibling modules with an explicit .ts extension
+    // (e.g. './money.ts'), which Node's own module resolution requires when a
+    // *.test.ts file runs them directly with `node --test` (no bundler involved).
+    // Safe because we only ever run `tsc --noEmit` -- Metro does the real build.
+    "allowImportingTsExtensions": true,
     "paths": {
       "@/*": [
         "./*"

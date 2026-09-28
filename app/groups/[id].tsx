@@ -353,7 +353,9 @@ export default function GroupScreen() {
             </View>
           ) : tab === 'balances' ? (
             <View style={{ flex: 1 }}>
-              {balances && <BalancesTab groupId={id} me={me} members={group.members} balances={balances} />}
+              {balances && (
+                <BalancesTab groupId={id} groupName={group.name} me={me} members={group.members} balances={balances} />
+              )}
               <AddBar groupId={id} />
             </View>
           ) : (
