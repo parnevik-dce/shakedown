@@ -27,10 +27,10 @@ export default function SignIn() {
       <SafeAreaView style={styles.screen}>
         <View style={styles.body}>
           <View style={styles.logo}>
-            <Ionicons name="wallet-outline" size={36} color={colors.primary} />
+            <Ionicons name="cash-outline" size={36} color={colors.primary} />
           </View>
           <Text style={styles.title}>Shakedown</Text>
-          <Text style={styles.subtitle}>Split what you share. Skip the awkward math.</Text>
+          <Text style={styles.subtitle}>Track what's owed. Nobody skips out.</Text>
           <Pressable
             accessibilityRole="button"
             onPress={handleSignIn}
@@ -55,23 +55,36 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: radii.xl,
     backgroundColor: colors.tint,
+    borderWidth: 2,
+    borderColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.sm,
   },
-  title: { fontSize: 38, fontWeight: '800', color: colors.text, letterSpacing: -0.5 },
+  title: {
+    fontSize: 40,
+    fontWeight: '800',
+    color: colors.text,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    textShadowColor: 'rgba(140,22,32,0.25)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 3,
+  },
   subtitle: { fontSize: 18, color: colors.muted, lineHeight: 25, marginBottom: spacing.lg },
   google: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: radii.lg,
     paddingVertical: 16,
     ...shadows.card,
   },
-  googlePressed: { backgroundColor: colors.surface, transform: [{ scale: 0.98 }] },
+  googlePressed: { backgroundColor: colors.tint, transform: [{ scale: 0.98 }] },
   googleText: { fontSize: 17, fontWeight: '700', color: colors.text },
   footnote: { fontSize: 13, color: colors.muted, textAlign: 'center', marginTop: spacing.sm },
 });

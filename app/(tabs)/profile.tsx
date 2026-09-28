@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -138,6 +139,7 @@ export default function ProfileScreen() {
             disabled={busy}
             style={({ pressed }) => [styles.card, styles.signOut, (busy || pressed) && { opacity: 0.6 }]}
           >
+            <Ionicons name="log-out-outline" size={18} color={colors.negative} />
             <Text style={styles.signOutText}>Sign out</Text>
           </Pressable>
         </ScrollView>
@@ -151,11 +153,20 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.bg,
     borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
     padding: spacing.lg,
     ...shadows.card,
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
-  photo: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.tint },
+  photo: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.tint,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+  },
   name: { fontSize: 24, fontWeight: '800', color: colors.text },
   email: { fontSize: 15, color: colors.muted, marginTop: 2 },
   total: { fontSize: 40, fontWeight: '800', color: colors.text },
@@ -174,6 +185,6 @@ const styles = StyleSheet.create({
   },
   groupLineName: { fontSize: 14, color: colors.text },
   groupLineText: { fontSize: 14, color: colors.muted },
-  signOut: { alignItems: 'center' },
+  signOut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
   signOutText: { fontSize: 17, fontWeight: '600', color: colors.negative },
 });

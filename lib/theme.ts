@@ -1,40 +1,43 @@
 export const colors = {
-  // A soft indigo-tinted white instead of clinical pure white -- warmer, less "form app".
-  bg: '#FBFAFF',
-  surface: '#F1EFFC',
-  tint: '#E7E3FB',
-  border: '#E4E0F5',
-  text: '#161221',
-  muted: '#726C87',
-  // Richer indigo/violet instead of a flat corporate blue.
-  primary: '#5B3DF5',
-  primaryDark: '#4527D6',
-  onPrimary: '#FFFFFF',
-  positive: '#1E9E64',
-  negative: '#E5484D',
-  // Soft accent for decorative background shapes.
-  blobA: '#D9CFFF',
-  blobB: '#FFD9EC',
+  // Aged ledger paper instead of a clean white -- this is a mob accountant's book, not a form app.
+  bg: '#F4EEDD',
+  surface: '#EDE3C8',
+  tint: '#E3D3AE',
+  border: '#C9B68A',
+  text: '#211714',
+  muted: '#6B5A45',
+  // Blood red + brass gold instead of indigo -- the "Shakedown" palette.
+  primary: '#8C1620',
+  primaryDark: '#6B0F17',
+  onPrimary: '#F4EEDD',
+  accent: '#A9791C',
+  accentDark: '#7C5A14',
+  positive: '#2F6B3D',
+  negative: '#B0202B',
+  // Ambient red/gold glow for the decorative background.
+  blobA: '#8C1620',
+  blobB: '#A9791C',
 } as const;
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;
 
-export const radii = { sm: 8, md: 12, lg: 16, xl: 22, pill: 999 } as const;
+// Slightly sharper than a soft consumer app -- this outfit doesn't do rounded corners.
+export const radii = { sm: 6, md: 10, lg: 14, xl: 20, pill: 999 } as const;
 
 /** Shared shadow presets -- iOS shadow props plus elevation for parity. */
 export const shadows = {
   button: {
-    shadowColor: '#5B3DF5',
-    shadowOpacity: 0.28,
-    shadowRadius: 14,
+    shadowColor: '#8C1620',
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
+    elevation: 8,
   },
   card: {
-    shadowColor: '#241A57',
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    shadowColor: '#1C120C',
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 3,
   },
 } as const;

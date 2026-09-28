@@ -120,8 +120,8 @@ export default function GroupsScreen() {
           <View style={styles.center}>
             <EmptyState
               icon="people-outline"
-              title="No groups yet"
-              message="Make a group for your apartment, your trip, or whoever you keep splitting things with."
+              title="No crews yet"
+              message="Start one for your apartment, your trip, or whoever you keep splitting things with -- and keep the books straight."
             >
               <View style={{ alignSelf: 'stretch' }}>
                 <PrimaryButton title="Create your first group" onPress={() => router.push('/groups/new')} />
@@ -173,6 +173,8 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: radii.pill,
     backgroundColor: colors.primary,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     ...shadows.button,
@@ -186,6 +188,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     backgroundColor: colors.bg,
     borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
     ...shadows.card,
   },
   rowPressed: { backgroundColor: colors.surface, transform: [{ scale: 0.99 }] },
@@ -194,6 +198,8 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: radii.md,
     backgroundColor: colors.tint,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
