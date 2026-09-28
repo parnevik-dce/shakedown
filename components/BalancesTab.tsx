@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { Avatar, EmptyState, LinkButton } from '@/components/ui';
 import type { GroupBalances } from '@/lib/balances';
 import type { Member } from '@/lib/groups';
 import { formatCents } from '@/lib/money';
+import { buildNudgeMessage } from '@/lib/nudge';
 import { colors, spacing } from '@/lib/theme';
 
 type View_ = 'raw' | 'simplified';
@@ -24,16 +25,19 @@ type Line = {
 
 export function BalancesTab({
   groupId,
+  groupName,
   me,
   members,
   balances,
 }: {
   groupId: string;
+  groupName: string;
   me: string;
   members: Member[];
   balances: GroupBalances;
 }) {
   const [mode, setMode] = useState<View_>('raw');
+  const realName = (id: string) => members.find((m) => m.userId === id)?.displayName ?? 'Someone';
   const name = (id: string) => (id === me ? 'You' : (members.find((m) => m.userId === id)?.displayName ?? 'Former member'));
   const tone = (from: string, to: string): Line['tone'] => (to === me ? 'positive' : from === me ? 'negative' : 'neutral');
 
@@ -79,6 +83,20 @@ export function BalancesTab({
       pathname: '/settlement/new',
       params: { groupId, from: l.from, to: l.to, cents: String(l.cents) },
     });
+  }
+
+  // Always the real people, never "You" -- this text is read by someone else.
+  async function handleNudge() {
+    const debts = balances.raw.map((d) => ({
+      debtorName: realName(d.debtorId),
+      creditorName: realName(d.creditorId),
+      cents: d.cents,
+    }));
+    try {
+      await Share.share({ message: buildNudgeMessage(groupName, debts) });
+    } catch {
+      // User dismissed the share sheet -- nothing to do.
+    }
   }
 
   return (
@@ -128,6 +146,12 @@ export function BalancesTab({
         ))
       )}
 
+      {balances.raw.length > 0 && (
+        <Pressable accessibilityRole="button" onPress={handleNudge} style={styles.nudge}>
+          <Text style={styles.nudgeText}>😤 Nudge everyone to settle up</Text>
+        </Pressable>
+      )}
+
       <View style={{ alignItems: 'center', marginTop: spacing.xl }}>
         <LinkButton
           title="Settlement history"
@@ -159,4 +183,13 @@ const styles = StyleSheet.create({
   amount: { fontSize: 16, fontWeight: '700', color: colors.text },
   settle: { borderWidth: 1.5, borderColor: colors.primary, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
   settleText: { fontSize: 14, fontWeight: '700', color: colors.primary },
+  nudge: {
+    marginTop: spacing.lg,
+    marginHorizontal: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  nudgeText: { fontSize: 15, fontWeight: '700', color: colors.text },
 });

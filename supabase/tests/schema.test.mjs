@@ -234,6 +234,12 @@ await ok('cancel pending invite: non-member cannot, but a no-op for a nonexisten
 });
 await denied('cancel pending invite: non-member cannot', () => as(C, `select cancel_pending_invite($1, 'x@example.com')`, [G]), 'Not a member');
 
+await ok('trip-covers bucket allows gif', async () => {
+  await db.exec('reset role');
+  const r = await db.query(`select allowed_mime_types from storage.buckets where id='trip-covers'`);
+  if (!r.rows[0].allowed_mime_types.includes('image/gif')) throw new Error('gif not allowed');
+});
+
 await ok('storage helpers', async () => {
   const r = await as(A, `select storage_group_id('${G}/x.jpg') g, storage_group_id('junk/x') j, can_write_receipt('${G}/${E}.jpg') w`);
   eq(r.rows[0].g, G, 'gid'); eq(r.rows[0].j, null, 'junk');
