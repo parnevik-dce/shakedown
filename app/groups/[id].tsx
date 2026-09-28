@@ -5,6 +5,7 @@ import * as Clipboard from 'expo-clipboard';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ScreenBackground } from '@/components/ScreenBackground';
 import { Avatar, EmptyState, LinkButton, PrimaryButton, SectionLabel } from '@/components/ui';
 import { BalancesTab } from '@/components/BalancesTab';
 import { fetchGroupBalances, type GroupBalances } from '@/lib/balances';
@@ -32,7 +33,7 @@ import {
 } from '@/lib/groups';
 import { getTripCoverUrl } from '@/lib/tripCovers';
 import { useSession } from '@/lib/session';
-import { colors, spacing } from '@/lib/theme';
+import { colors, radii, shadows, spacing } from '@/lib/theme';
 
 type Tab = 'activity' | 'expenses' | 'balances' | 'members';
 
@@ -253,6 +254,7 @@ export default function GroupScreen() {
   }
 
   return (
+    <ScreenBackground>
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.nav}>
         <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={8} style={styles.back}>
@@ -475,6 +477,7 @@ export default function GroupScreen() {
         </>
       )}
     </SafeAreaView>
+    </ScreenBackground>
   );
 }
 
@@ -485,7 +488,7 @@ const styles = StyleSheet.create({
   feedSub: { fontSize: 13, color: colors.muted, marginTop: 2 },
   feedAmount: { fontSize: 16, fontWeight: '700', color: colors.text },
   struck: { textDecorationLine: 'line-through', color: colors.muted },
-  screen: { flex: 1, backgroundColor: colors.bg },
+  screen: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', paddingBottom: 60 },
   nav: {
     flexDirection: 'row',
@@ -524,7 +527,7 @@ const styles = StyleSheet.create({
   tabActive: { color: colors.primary, fontWeight: '700' },
   tabUnderline: { position: 'absolute', left: 0, right: 0, bottom: -StyleSheet.hairlineWidth, height: 2, backgroundColor: colors.primary },
   membersBody: { paddingHorizontal: spacing.lg, paddingBottom: 48 },
-  card: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: 'hidden' },
+  card: { backgroundColor: colors.bg, borderRadius: radii.lg, overflow: 'hidden', ...shadows.card },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
   cardLabel: { fontSize: 13, color: colors.muted },
   code: { fontSize: 22, fontWeight: '700', letterSpacing: 3, color: colors.text, marginTop: 2 },

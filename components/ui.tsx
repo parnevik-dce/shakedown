@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { colors, spacing } from '@/lib/theme';
+import { colors, radii, shadows, spacing } from '@/lib/theme';
 
 export function PrimaryButton({
   title,
@@ -20,7 +20,12 @@ export function PrimaryButton({
       accessibilityRole="button"
       onPress={onPress}
       disabled={disabled || loading}
-      style={({ pressed }) => [styles.primary, (disabled || loading) && styles.disabled, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.primary,
+        shadows.button,
+        (disabled || loading) && styles.disabled,
+        pressed && styles.primaryPressed,
+      ]}
     >
       {loading ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.primaryText}>{title}</Text>}
     </Pressable>
@@ -29,7 +34,12 @@ export function PrimaryButton({
 
 export function LinkButton({ title, onPress, danger }: { title: string; onPress: () => void; danger?: boolean }) {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} hitSlop={8}>
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      hitSlop={8}
+      style={({ pressed }) => [pressed && { opacity: 0.6 }]}
+    >
       <Text style={[styles.link, danger && { color: colors.negative }]}>{title}</Text>
     </Pressable>
   );
@@ -49,7 +59,7 @@ export function EmptyState({
   return (
     <View style={styles.empty}>
       <View style={styles.emptyIcon}>
-        <Ionicons name={icon} size={30} color={colors.muted} />
+        <Ionicons name={icon} size={30} color={colors.primary} />
       </View>
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptyMessage}>{message}</Text>
@@ -79,26 +89,23 @@ export function SectionLabel({ children }: { children: string }) {
 const styles = StyleSheet.create({
   primary: {
     backgroundColor: colors.primary,
-    borderRadius: 12,
-    paddingVertical: 15,
+    borderRadius: radii.lg,
+    paddingVertical: 16,
     paddingHorizontal: spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 50,
+    minHeight: 52,
   },
-  primaryText: { color: colors.onPrimary, fontSize: 17, fontWeight: '600' },
-  disabled: { opacity: 0.5 },
-  pressed: { opacity: 0.85 },
-  link: { color: colors.primary, fontSize: 15, textDecorationLine: 'underline' },
+  primaryText: { color: colors.onPrimary, fontSize: 17, fontWeight: '700', letterSpacing: 0.2 },
+  disabled: { opacity: 0.45, shadowOpacity: 0 },
+  primaryPressed: { backgroundColor: colors.primaryDark, transform: [{ scale: 0.98 }], shadowOpacity: 0.16 },
+  link: { color: colors.primary, fontSize: 15, fontWeight: '600' },
   empty: { alignItems: 'center', paddingHorizontal: spacing.xl, gap: spacing.md },
   emptyIcon: {
-    width: 84,
-    height: 84,
-    borderRadius: 18,
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: colors.border,
+    width: 88,
+    height: 88,
+    borderRadius: radii.xl,
+    backgroundColor: colors.tint,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.sm,
@@ -106,10 +113,10 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 20, fontWeight: '700', color: colors.text },
   emptyMessage: { fontSize: 15, color: colors.muted, textAlign: 'center', lineHeight: 21, marginBottom: spacing.sm },
   avatar: { backgroundColor: colors.tint, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: colors.primary, fontWeight: '700' },
+  avatarText: { color: colors.primaryDark, fontWeight: '700' },
   sectionLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
     color: colors.muted,

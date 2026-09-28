@@ -4,12 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ScreenBackground } from '@/components/ScreenBackground';
 import { EmptyState, LinkButton, PrimaryButton } from '@/components/ui';
 import { fetchMyGroups, type GroupSummary, type TripIcon } from '@/lib/groups';
 import { formatCents } from '@/lib/money';
 import { getTripCoverUrl } from '@/lib/tripCovers';
 import { useSession } from '@/lib/session';
-import { colors, spacing } from '@/lib/theme';
+import { colors, radii, shadows, spacing } from '@/lib/theme';
 
 function formatTripDates(start: string | null, end: string | null) {
   if (!start) return null;
@@ -32,7 +33,7 @@ function GroupRow({ group }: { group: GroupSummary }) {
     <Pressable
       accessibilityRole="button"
       onPress={() => router.push({ pathname: '/groups/[id]', params: { id: group.id } })}
-      style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surface }]}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
       <View style={styles.thumb}>
         {coverUrl ? (
@@ -95,67 +96,70 @@ export default function GroupsScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Groups</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Create a group"
-          onPress={() => router.push('/groups/new')}
-          style={styles.plus}
-        >
-          <Ionicons name="add" size={24} color={colors.text} />
-        </Pressable>
-      </View>
-
-      {error ? (
-        <View style={styles.center}>
-          <EmptyState icon="cloud-offline-outline" title="Couldn't load groups" message={error}>
-            <LinkButton title="Try again" onPress={load} />
-          </EmptyState>
-        </View>
-      ) : groups === null ? null : groups.length === 0 ? (
-        <View style={styles.center}>
-          <EmptyState
-            icon="people-outline"
-            title="No groups yet"
-            message="Make a group for your apartment, your trip, or whoever you keep splitting things with."
+    <ScreenBackground>
+      <SafeAreaView style={styles.screen} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Groups</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Create a group"
+            onPress={() => router.push('/groups/new')}
+            style={({ pressed }) => [styles.plus, pressed && { transform: [{ scale: 0.94 }] }]}
           >
-            <View style={{ alignSelf: 'stretch' }}>
-              <PrimaryButton title="Create your first group" onPress={() => router.push('/groups/new')} />
-            </View>
-            <LinkButton title="Join with an invite code" onPress={() => router.push('/join')} />
-          </EmptyState>
+            <Ionicons name="add" size={26} color={colors.onPrimary} />
+          </Pressable>
         </View>
-      ) : (
-        <FlatList
-          data={groups}
-          keyExtractor={(g) => g.id}
-          renderItem={({ item }) => <GroupRow group={item} />}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={async () => {
-                setRefreshing(true);
-                await load();
-                setRefreshing(false);
-              }}
-            />
-          }
-          ListFooterComponent={
-            <View style={{ alignItems: 'center', padding: spacing.xl }}>
+
+        {error ? (
+          <View style={styles.center}>
+            <EmptyState icon="cloud-offline-outline" title="Couldn't load groups" message={error}>
+              <LinkButton title="Try again" onPress={load} />
+            </EmptyState>
+          </View>
+        ) : groups === null ? null : groups.length === 0 ? (
+          <View style={styles.center}>
+            <EmptyState
+              icon="people-outline"
+              title="No groups yet"
+              message="Make a group for your apartment, your trip, or whoever you keep splitting things with."
+            >
+              <View style={{ alignSelf: 'stretch' }}>
+                <PrimaryButton title="Create your first group" onPress={() => router.push('/groups/new')} />
+              </View>
               <LinkButton title="Join with an invite code" onPress={() => router.push('/join')} />
-            </View>
-          }
-        />
-      )}
-    </SafeAreaView>
+            </EmptyState>
+          </View>
+        ) : (
+          <FlatList
+            data={groups}
+            keyExtractor={(g) => g.id}
+            renderItem={({ item }) => <GroupRow group={item} />}
+            contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}
+            ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={async () => {
+                  setRefreshing(true);
+                  await load();
+                  setRefreshing(false);
+                }}
+              />
+            }
+            ListFooterComponent={
+              <View style={{ alignItems: 'center', padding: spacing.xl }}>
+                <LinkButton title="Join with an invite code" onPress={() => router.push('/join')} />
+              </View>
+            }
+          />
+        )}
+      </SafeAreaView>
+    </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
+  screen: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -163,22 +167,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
-  title: { fontSize: 32, fontWeight: '800', color: colors.text },
+  title: { fontSize: 32, fontWeight: '800', color: colors.text, letterSpacing: -0.5 },
   plus: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    borderWidth: 1.5,
-    borderColor: colors.text,
+    width: 42,
+    height: 42,
+    borderRadius: radii.pill,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    ...shadows.button,
   },
   center: { flex: 1, justifyContent: 'center', paddingBottom: 60 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: 14 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.bg,
+    borderRadius: radii.lg,
+    ...shadows.card,
+  },
+  rowPressed: { backgroundColor: colors.surface, transform: [{ scale: 0.99 }] },
   thumb: {
-    width: 46,
-    height: 46,
-    borderRadius: 12,
+    width: 48,
+    height: 48,
+    borderRadius: radii.md,
     backgroundColor: colors.tint,
     alignItems: 'center',
     justifyContent: 'center',
@@ -188,5 +202,4 @@ const styles = StyleSheet.create({
   rowTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   rowSub: { fontSize: 13, color: colors.muted, marginTop: 2 },
   amount: { fontSize: 16, fontWeight: '700', color: colors.text },
-  separator: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginLeft: 76 },
 });
