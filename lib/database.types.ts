@@ -168,6 +168,48 @@ export type Database = {
           },
         ]
       }
+      group_email_invites: {
+        Row: {
+          consumed_at: string | null
+          created_at: string
+          email: string
+          group_id: string
+          id: string
+          invited_by: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          created_at?: string
+          email: string
+          group_id: string
+          id?: string
+          invited_by?: string
+        }
+        Update: {
+          consumed_at?: string | null
+          created_at?: string
+          email?: string
+          group_id?: string
+          id?: string
+          invited_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_email_invites_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_email_invites_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       group_invites: {
         Row: {
           code: string
@@ -425,9 +467,17 @@ export type Database = {
         Returns: undefined
       }
       can_write_receipt: { Args: { object_name: string }; Returns: boolean }
+      cancel_pending_invite: {
+        Args: { p_email: string; p_group_id: string }
+        Returns: undefined
+      }
       delete_expense: { Args: { p_expense_id: string }; Returns: undefined }
       delete_settlement: {
         Args: { p_settlement_id: string }
+        Returns: undefined
+      }
+      invite_member_by_email: {
+        Args: { p_email: string; p_group_id: string }
         Returns: undefined
       }
       is_group_member: { Args: { gid: string }; Returns: boolean }

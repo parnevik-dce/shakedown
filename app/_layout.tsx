@@ -27,6 +27,7 @@ function RootNavigator() {
         <Stack.Screen name="groups/new-group" options={{ presentation: 'modal' }} />
         <Stack.Screen name="groups/trip" options={{ presentation: 'modal' }} />
         <Stack.Screen name="groups/[id]" />
+        <Stack.Screen name="groups/invite-contacts" options={{ presentation: 'modal' }} />
         <Stack.Screen name="expense/new" options={{ presentation: 'modal' }} />
         <Stack.Screen name="expense/[id]" />
         {/* Default (card) presentation: a fullScreenModal pushed from a screen that is
