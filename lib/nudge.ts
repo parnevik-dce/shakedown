@@ -8,7 +8,7 @@ const OPENERS = [
   (group: string) => `🚨 SETTLE UP ALERT 🚨\n${group}, the debt gods are watching.`,
   (group: string) => `Hi, it's your friendly neighborhood balance reminder, coming in HOT 🔥\n(${group})`,
   (group: string) => `📢 This is not a drill. ${group} has unfinished business:`,
-  () => `Gentle reminder that money doesn't grow on trees, but debts sure do grow on people who ignore them 👀`,
+  (group: string) => `Gentle reminder from ${group} that money doesn't grow on trees, but debts sure do grow on people who ignore them 👀`,
   (group: string) => `🕵️ Someone in ${group} owes money. I'm not naming names.\n(I'm naming names below.)`,
   (group: string) => `${group} financial update, brought to you by mild guilt-tripping:`,
 ];
