@@ -20,11 +20,14 @@ import { formatCents } from '@/lib/money';
 import { formatWhen } from '@/lib/time';
 import {
   fetchGroup,
+  cancelPendingInvite,
+  fetchPendingInvites,
   getOrCreateInviteCode,
   inviteLink,
   leaveGroup,
   removeMember,
   type GroupDetail,
+  type PendingInvite,
   type TripIcon,
 } from '@/lib/groups';
 import { getTripCoverUrl } from '@/lib/tripCovers';
@@ -147,6 +150,7 @@ export default function GroupScreen() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>(initialTab === 'members' ? 'members' : 'expenses');
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
 
   useEffect(() => {
     if (group?.coverImagePath) getTripCoverUrl(group.coverImagePath).then(setCoverUrl).catch(() => {});
@@ -155,18 +159,20 @@ export default function GroupScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [g, c, a, e, b] = await Promise.all([
+      const [g, c, a, e, b, p] = await Promise.all([
         fetchGroup(id),
         getOrCreateInviteCode(id),
         fetchGroupActivity(id, me),
         fetchGroupExpenseList(id, me),
         fetchGroupBalances(id),
+        fetchPendingInvites(id),
       ]);
       setGroup(g);
       setCode(c);
       setActivity(a);
       setExpenseList(e);
       setBalances(b);
+      setPendingInvites(p);
       setError(null);
     } catch (err) {
       setError(messageOf(err));
@@ -206,6 +212,24 @@ export default function GroupScreen() {
         onPress: async () => {
           try {
             await removeMember(id, userId);
+            await load();
+          } catch (err) {
+            Alert.alert("Can't remove", messageOf(err));
+          }
+        },
+      },
+    ]);
+  }
+
+  function confirmCancelInvite(email: string) {
+    Alert.alert(`Remove invite for ${email}?`, "They won't be added to this group if they sign in later.", [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await cancelPendingInvite(id, email);
             await load();
           } catch (err) {
             Alert.alert("Can't remove", messageOf(err));
@@ -374,8 +398,38 @@ export default function GroupScreen() {
                   <Ionicons name="share-outline" size={20} color={colors.primary} />
                   <Text style={styles.shareText}>Share invite</Text>
                 </Pressable>
+                <View style={styles.divider} />
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => router.push({ pathname: '/groups/invite-contacts', params: { groupId: id } })}
+                  style={styles.cardRow}
+                >
+                  <Ionicons name="person-add-outline" size={20} color={colors.primary} />
+                  <Text style={styles.shareText}>Invite from contacts</Text>
+                </Pressable>
               </View>
               <Text style={styles.hint}>Codes expire after 7 days. Anyone with the code can join this group.</Text>
+
+              {pendingInvites.length > 0 && (
+                <>
+                  <SectionLabel>Pending invites</SectionLabel>
+                  <View style={styles.card}>
+                    {pendingInvites.map((p, i) => (
+                      <View key={p.email}>
+                        {i > 0 && <View style={styles.divider} />}
+                        <View style={styles.cardRow}>
+                          <Ionicons name="mail-outline" size={20} color={colors.muted} />
+                          <Text style={[styles.memberName, { flex: 1 }]} numberOfLines={1}>
+                            {p.email}
+                          </Text>
+                          <LinkButton title="Remove" danger onPress={() => confirmCancelInvite(p.email)} />
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                  <Text style={styles.hint}>They'll join automatically the first time they sign in with this email.</Text>
+                </>
+              )}
 
               <SectionLabel>Members</SectionLabel>
               <View style={styles.card}>

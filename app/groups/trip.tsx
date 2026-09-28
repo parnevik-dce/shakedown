@@ -19,7 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar, EmptyState, LinkButton, SectionLabel } from '@/components/ui';
 import { fromDateString } from '@/lib/expenses';
-import { createTrip, fetchGroup, TRIP_ICONS, updateTrip, type TripIcon } from '@/lib/groups';
+import { createTrip, fetchGroup, TRIP_ICONS, updateTrip, type Member, type TripIcon } from '@/lib/groups';
 import type { PickedImage } from '@/lib/images';
 import { chooseCoverPhoto, getTripCoverUrl, removeTripCover, takeCoverPhoto, uploadTripCover } from '@/lib/tripCovers';
 import { useSession } from '@/lib/session';
@@ -37,7 +37,7 @@ export default function TripForm() {
 
   const [loading, setLoading] = useState(editing);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [ownerName, setOwnerName] = useState('You');
+  const [members, setMembers] = useState<Member[]>([]);
 
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState(new Date());
@@ -67,8 +67,7 @@ export default function TripForm() {
           setCoverPath(g.coverImagePath);
           getTripCoverUrl(g.coverImagePath).then(setCoverPreview).catch(() => {});
         }
-        const owner = g.members.find((m) => m.role === 'owner');
-        if (owner) setOwnerName(owner.userId === me ? 'You' : owner.displayName);
+        setMembers(g.members);
         setLoading(false);
       },
       (err) => {
@@ -267,11 +266,15 @@ export default function TripForm() {
 
             <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.lg }}>
               <SectionLabel>Members</SectionLabel>
-              <View style={styles.memberRow}>
-                <Avatar name={ownerName} size={34} />
-                <Text style={styles.memberName}>{ownerName}</Text>
-                <Text style={styles.memberRole}>Owner</Text>
-              </View>
+              {(editing ? members : [{ userId: me, role: 'owner' as const, displayName: 'You', avatarUrl: null, email: null }]).map(
+                (m) => (
+                  <View key={m.userId} style={styles.memberRow}>
+                    <Avatar name={m.userId === me ? 'You' : m.displayName} size={34} />
+                    <Text style={styles.memberName}>{m.userId === me ? 'You' : m.displayName}</Text>
+                    <Text style={styles.memberRole}>{m.role === 'owner' ? 'Owner' : ''}</Text>
+                  </View>
+                )
+              )}
               {!editing && (
                 <Text style={styles.hint}>
                   After you create it, you'll get an invite link and code to share with the people on the trip.

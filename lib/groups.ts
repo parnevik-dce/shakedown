@@ -195,3 +195,32 @@ export async function removeMember(groupId: string, userId: string): Promise<voi
 export function inviteLink(code: string): string {
   return `shakedown://join/${code}`;
 }
+
+/**
+ * Invites someone by email (e.g. picked from a phone contact). If that email
+ * already has an account, they're added to the group right away; otherwise the
+ * invite is claimed automatically the first time they sign in with that email.
+ */
+export async function inviteByEmail(groupId: string, email: string): Promise<void> {
+  unwrap(await supabase.rpc('invite_member_by_email', { p_group_id: groupId, p_email: email }));
+}
+
+export type PendingInvite = { email: string; createdAt: string };
+
+/** Invited-by-email people who haven't joined yet (an invite code has no such list). */
+export async function fetchPendingInvites(groupId: string): Promise<PendingInvite[]> {
+  const rows = unwrap(
+    await supabase
+      .from('group_email_invites')
+      .select('email, created_at')
+      .eq('group_id', groupId)
+      .is('consumed_at', null)
+      .order('created_at', { ascending: false })
+  );
+  return rows.map((r) => ({ email: r.email, createdAt: r.created_at }));
+}
+
+/** Removes a pending email invite before it's been accepted. */
+export async function cancelPendingInvite(groupId: string, email: string): Promise<void> {
+  unwrap(await supabase.rpc('cancel_pending_invite', { p_group_id: groupId, p_email: email }));
+}
