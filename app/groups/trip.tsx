@@ -20,6 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, EmptyState, LinkButton, SectionLabel } from '@/components/ui';
 import { fromDateString } from '@/lib/expenses';
 import { createTrip, fetchGroup, TRIP_ICONS, updateTrip, type TripIcon } from '@/lib/groups';
+import type { PickedImage } from '@/lib/images';
 import { chooseCoverPhoto, getTripCoverUrl, removeTripCover, takeCoverPhoto, uploadTripCover } from '@/lib/tripCovers';
 import { useSession } from '@/lib/session';
 import { colors, spacing } from '@/lib/theme';
@@ -47,7 +48,7 @@ export default function TripForm() {
   const [icon, setIcon] = useState<TripIcon | null>(null);
   const [coverPath, setCoverPath] = useState<string | null>(null); // already-uploaded path
   const [coverPreview, setCoverPreview] = useState<string | null>(null); // local uri or signed url
-  const [pickedLocalUri, setPickedLocalUri] = useState<string | null>(null); // not yet uploaded
+  const [pickedImage, setPickedImage] = useState<PickedImage | null>(null); // not yet uploaded
   const [coverChanged, setCoverChanged] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [coverBusy, setCoverBusy] = useState(false);
@@ -94,10 +95,10 @@ export default function TripForm() {
   async function handlePickPhoto(source: 'camera' | 'library') {
     setCoverBusy(true);
     try {
-      const uri = source === 'camera' ? await takeCoverPhoto() : await chooseCoverPhoto();
-      if (!uri) return;
-      setPickedLocalUri(uri);
-      setCoverPreview(uri);
+      const picked = source === 'camera' ? await takeCoverPhoto() : await chooseCoverPhoto();
+      if (!picked) return;
+      setPickedImage(picked);
+      setCoverPreview(picked.uri);
       setIcon(null);
       setShowIconPicker(false);
       setCoverChanged(true);
@@ -110,14 +111,14 @@ export default function TripForm() {
 
   function chooseIcon(next: TripIcon) {
     setIcon(next);
-    setPickedLocalUri(null);
+    setPickedImage(null);
     setCoverPreview(null);
     setShowIconPicker(false);
     setCoverChanged(true); // clears any saved cover photo too
   }
 
   function clearCover() {
-    setPickedLocalUri(null);
+    setPickedImage(null);
     setCoverPreview(null);
     setIcon(null);
     setCoverChanged(coverPath !== null);
@@ -130,8 +131,10 @@ export default function TripForm() {
       if (editing) {
         let nextCoverPath = coverPath;
         if (coverChanged) {
-          if (pickedLocalUri) {
-            nextCoverPath = await uploadTripCover(groupId, pickedLocalUri);
+          if (pickedImage) {
+            nextCoverPath = await uploadTripCover(groupId, pickedImage);
+            // A GIF and a JPEG live at different filenames, so the old one is orphaned otherwise.
+            if (coverPath && coverPath !== nextCoverPath) await removeTripCover(coverPath).catch(() => {});
           } else {
             if (coverPath) await removeTripCover(coverPath).catch(() => {});
             nextCoverPath = null;
@@ -141,8 +144,8 @@ export default function TripForm() {
         router.back();
       } else {
         const id = await createTrip({ name, startDate, endDate, icon: icon ?? undefined });
-        if (pickedLocalUri) {
-          const path = await uploadTripCover(id, pickedLocalUri);
+        if (pickedImage) {
+          const path = await uploadTripCover(id, pickedImage);
           await updateTrip(id, { name, startDate, endDate, coverImagePath: path });
         }
         router.replace({ pathname: '/groups/[id]', params: { id, tab: 'members' } });

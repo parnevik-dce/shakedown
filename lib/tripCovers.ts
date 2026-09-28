@@ -1,19 +1,23 @@
-import { choosePhoto, getImageUrl, removeImage, takePhoto, uploadImage } from './images';
+import { choosePhoto, getImageUrl, removeImage, takePhoto, uploadImage, type PickedImage } from './images';
 
 const BUCKET = 'trip-covers';
 
-export async function takeCoverPhoto(): Promise<string | null> {
+export async function takeCoverPhoto(): Promise<PickedImage | null> {
   return takePhoto('Camera access is off for Shakedown. Enable it in Settings to take a photo.');
 }
 
-export async function chooseCoverPhoto(): Promise<string | null> {
-  return choosePhoto('Photo access is off for Shakedown. Enable it in Settings to choose an image.');
+/** allowGif: keep an animated GIF picked from the library animated, instead of flattening it. */
+export async function chooseCoverPhoto(): Promise<PickedImage | null> {
+  return choosePhoto('Photo access is off for Shakedown. Enable it in Settings to choose an image.', true);
 }
 
-/** One cover per trip, always overwritten (unlike receipts, there's no per-item id to key on). */
-export async function uploadTripCover(groupId: string, localUri: string): Promise<string> {
-  const path = `${groupId}/cover.jpg`;
-  await uploadImage(BUCKET, path, localUri);
+/**
+ * One cover per trip, always overwritten. The extension follows the file: an animated
+ * GIF is stored (and served) as .gif so it keeps playing; anything else is a .jpg.
+ */
+export async function uploadTripCover(groupId: string, image: PickedImage): Promise<string> {
+  const path = `${groupId}/cover.${image.isGif ? 'gif' : 'jpg'}`;
+  await uploadImage(BUCKET, path, image);
   return path;
 }
 
