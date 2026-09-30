@@ -9,7 +9,8 @@
     "scheme": "shakedown",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.parnevik.shakedown"
+      "bundleIdentifier": "com.parnevik.shakedown",
+      "appleTeamId": "T8L3J2N9WA"
     },
     "android": {
       "adaptiveIcon": {
@@ -48,7 +49,8 @@
         {
           "contactsPermission": "Shakedown needs access to your contacts so you can invite people to a group."
         }
-      ]
+      ],
+      "./plugins/withDisableUserScriptSandboxing.js"
     ]
   }
 }

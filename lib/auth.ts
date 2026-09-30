@@ -27,7 +27,9 @@ export async function signInWithGoogle() {
   const { params, errorCode } = QueryParams.getQueryParams(result.url);
   if (errorCode) throw new Error(errorCode);
 
-  const { code } = params;
+  // A bare "scheme://" redirect URI (no host/path) can come back with a stray "#"
+  // glued onto the code -- strip it, since a real auth code never contains one.
+  const code = params.code?.split('#')[0];
   if (!code) throw new Error('No auth code returned from Supabase.');
 
   const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
