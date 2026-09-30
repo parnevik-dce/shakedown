@@ -9,7 +9,8 @@
     "scheme": "shakedown",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.parnevik.shakedown"
+      "bundleIdentifier": "com.parnevik.shakedown",
+      "appleTeamId": "T8L3J2N9WA"
     },
     "android": {
       "adaptiveIcon": {
