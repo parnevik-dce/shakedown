@@ -10,7 +10,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.parnevik.shakedown",
-      "appleTeamId": "6829YGPUAD"
+      "appleTeamId": "6829YGPUAD",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
