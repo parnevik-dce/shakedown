@@ -13,7 +13,8 @@
       "appleTeamId": "6829YGPUAD",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "buildNumber": "2"
     },
     "android": {
       "adaptiveIcon": {
