@@ -197,27 +197,58 @@ export function inviteLink(code: string): string {
 }
 
 /**
- * Invites someone by email (e.g. picked from a phone contact). If that email
- * already has an account, they're added to the group right away; otherwise the
- * invite is claimed automatically the first time they sign in with that email.
+ * Invites someone by email (e.g. picked from a phone contact). They aren't added
+ * to the group: they see the invitation when they sign in and choose to join or
+ * decline. Re-inviting someone who declined sends it again.
  */
 export async function inviteByEmail(groupId: string, email: string): Promise<void> {
   unwrap(await supabase.rpc('invite_member_by_email', { p_group_id: groupId, p_email: email }));
 }
 
-export type PendingInvite = { email: string; createdAt: string };
+export type PendingInvite = { email: string; createdAt: string; status: 'pending' | 'declined' };
 
-/** Invited-by-email people who haven't joined yet (an invite code has no such list). */
+/** Email invitations the group is waiting on: still pending, or declined (can be re-sent). */
 export async function fetchPendingInvites(groupId: string): Promise<PendingInvite[]> {
   const rows = unwrap(
     await supabase
       .from('group_email_invites')
-      .select('email, created_at')
+      .select('email, created_at, status')
       .eq('group_id', groupId)
-      .is('consumed_at', null)
+      .neq('status', 'accepted')
       .order('created_at', { ascending: false })
   );
-  return rows.map((r) => ({ email: r.email, createdAt: r.created_at }));
+  return rows.map((r) => ({
+    email: r.email,
+    createdAt: r.created_at,
+    status: r.status === 'declined' ? 'declined' : 'pending',
+  }));
+}
+
+export type MyInvite = {
+  inviteId: string;
+  groupId: string;
+  groupName: string;
+  kind: string;
+  icon: string | null;
+  invitedBy: string | null;
+};
+
+/** Invitations addressed to the signed-in user's email, waiting for a join/decline. */
+export async function fetchMyInvites(): Promise<MyInvite[]> {
+  const rows = unwrap(await supabase.rpc('my_group_invites'));
+  return rows.map((r) => ({
+    inviteId: r.invite_id,
+    groupId: r.group_id,
+    groupName: r.group_name,
+    kind: r.group_kind,
+    icon: r.group_icon,
+    invitedBy: r.invited_by_name,
+  }));
+}
+
+/** Join (accept) or decline an invitation. Returns the group's id. */
+export async function respondToInvite(inviteId: string, accept: boolean): Promise<string> {
+  return unwrap(await supabase.rpc('respond_to_group_invite', { p_invite_id: inviteId, p_accept: accept }));
 }
 
 /** Removes a pending email invite before it's been accepted. */

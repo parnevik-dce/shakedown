@@ -24,6 +24,7 @@ import {
   cancelPendingInvite,
   fetchPendingInvites,
   getOrCreateInviteCode,
+  inviteByEmail,
   inviteLink,
   leaveGroup,
   removeMember,
@@ -222,8 +223,17 @@ export default function GroupScreen() {
     ]);
   }
 
+  async function reinvite(email: string) {
+    try {
+      await inviteByEmail(id, email);
+      await load();
+    } catch (err) {
+      Alert.alert("Can't re-invite", messageOf(err));
+    }
+  }
+
   function confirmCancelInvite(email: string) {
-    Alert.alert(`Remove invite for ${email}?`, "They won't be added to this group if they sign in later.", [
+    Alert.alert(`Remove invite for ${email}?`, "The invitation will be withdrawn and they won't see it when they sign in.", [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
@@ -414,22 +424,36 @@ export default function GroupScreen() {
 
               {pendingInvites.length > 0 && (
                 <>
-                  <SectionLabel>Pending invites</SectionLabel>
+                  <SectionLabel>Invitations</SectionLabel>
                   <View style={styles.card}>
                     {pendingInvites.map((p, i) => (
                       <View key={p.email}>
                         {i > 0 && <View style={styles.divider} />}
                         <View style={styles.cardRow}>
-                          <Ionicons name="mail-outline" size={20} color={colors.muted} />
-                          <Text style={[styles.memberName, { flex: 1 }]} numberOfLines={1}>
-                            {p.email}
-                          </Text>
-                          <LinkButton title="Remove" danger onPress={() => confirmCancelInvite(p.email)} />
+                          <Ionicons
+                            name={p.status === 'declined' ? 'close-circle-outline' : 'mail-outline'}
+                            size={20}
+                            color={p.status === 'declined' ? colors.negative : colors.muted}
+                          />
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.memberName} numberOfLines={1}>
+                              {p.email}
+                            </Text>
+                            <Text style={[styles.memberSub, p.status === 'declined' && { color: colors.negative }]}>
+                              {p.status === 'declined' ? 'Declined' : 'Waiting for a response'}
+                            </Text>
+                          </View>
+                          <View style={{ alignItems: 'flex-end', gap: 2 }}>
+                            {p.status === 'declined' && <LinkButton title="Re-invite" onPress={() => reinvite(p.email)} />}
+                            <LinkButton title="Remove" danger onPress={() => confirmCancelInvite(p.email)} />
+                          </View>
                         </View>
                       </View>
                     ))}
                   </View>
-                  <Text style={styles.hint}>They'll join automatically the first time they sign in with this email.</Text>
+                  <Text style={styles.hint}>
+                    They'll see the invitation when they sign in with this email, and can choose to join or decline.
+                  </Text>
                 </>
               )}
 

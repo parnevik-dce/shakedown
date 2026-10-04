@@ -184,24 +184,57 @@ await ok('settlement with no payment method still works (nullable)', async () =>
   await as(A, `select record_settlement($1,$2,$3,500)`, [G, A, B]);
 });
 
-await ok('invite by email: existing account joins immediately', async () => {
+await ok('invite by email: existing account gets an invitation, not an automatic membership', async () => {
   const G3 = (await as(A, `insert into groups(name) values ('EmailInvites') returning id`)).rows[0].id;
   await as(A, `select invite_member_by_email($1, 'b@x.com')`, [G3]);
-  const r = await as(A, `select user_id from group_members where group_id=$1 and left_at is null`, [G3]);
-  eq(r.rows.map((x) => x.user_id).sort(), [A, B].sort(), 'members');
+  const members = await as(A, `select user_id from group_members where group_id=$1 and left_at is null`, [G3]);
+  eq(members.rows.map((x) => x.user_id), [A], 'B is not added yet');
+  const mine = await as(B, `select group_id, group_name, invited_by_name from my_group_invites()`);
+  eq(mine.rows, [{ group_id: G3, group_name: 'EmailInvites', invited_by_name: 'Alice' }], 'B sees the invitation');
+  const other = await as(C, `select count(*)::int n from my_group_invites()`);
+  eq(other.rows[0].n, 0, 'C does not');
 });
-await ok('invite by email: no account yet leaves a pending invite, claimed on sign-up', async () => {
+await ok('invitation: decline shows as declined, re-invite brings it back, accept joins', async () => {
+  const G9 = (await as(A, `insert into groups(name) values ('Respond') returning id`)).rows[0].id;
+  await as(A, `select invite_member_by_email($1, 'b@x.com')`, [G9]);
+  const inv = (await as(B, `select invite_id from my_group_invites() where group_id=$1`, [G9])).rows[0].invite_id;
+
+  await as(B, `select respond_to_group_invite($1, false)`, [inv]);
+  const declined = await as(A, `select status from group_email_invites where group_id=$1`, [G9]);
+  eq(declined.rows, [{ status: 'declined' }], 'marked declined');
+  eq((await as(B, `select count(*)::int n from my_group_invites() where group_id=$1`, [G9])).rows[0].n, 0, 'gone from B pending list');
+  eq((await as(A, `select count(*)::int n from group_members where group_id=$1 and user_id=$2`, [G9, B])).rows[0].n, 0, 'B not a member');
+
+  await as(A, `select invite_member_by_email($1, 'b@x.com')`, [G9]); // re-invite
+  eq((await as(A, `select count(*)::int n from group_email_invites where group_id=$1`, [G9])).rows[0].n, 1, 'same row reused');
+  const again = await as(B, `select invite_id from my_group_invites() where group_id=$1`, [G9]);
+  eq(again.rows.length, 1, 'pending again');
+
+  await as(B, `select respond_to_group_invite($1, true)`, [again.rows[0].invite_id]);
+  eq((await as(A, `select count(*)::int n from group_members where group_id=$1 and user_id=$2 and left_at is null`, [G9, B])).rows[0].n, 1, 'B joined');
+  eq((await as(A, `select status from group_email_invites where group_id=$1`, [G9])).rows[0].status, 'accepted', 'accepted');
+});
+await ok('invitation: no account yet -> pending, shown after first sign-in, not auto-joined', async () => {
   const G4 = (await as(A, `insert into groups(name) values ('PendingInvites') returning id`)).rows[0].id;
   await as(A, `select invite_member_by_email($1, 'Future.Person@Example.com ')`, [G4]);
-  const pending = await as(A, `select email, consumed_at from group_email_invites where group_id=$1`, [G4]);
-  eq(pending.rows, [{ email: 'future.person@example.com', consumed_at: null }], 'normalized, pending');
+  const pending = await as(A, `select email, status from group_email_invites where group_id=$1`, [G4]);
+  eq(pending.rows, [{ email: 'future.person@example.com', status: 'pending' }], 'normalized, pending');
 
-  await db.exec(`reset role; insert into auth.users(id,email,raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000e1','future.person@example.com','{"full_name":"Future Person"}')`);
-  const members = await as(A, `select user_id from group_members where group_id=$1 and user_id='00000000-0000-0000-0000-0000000000e1'`, [G4]);
-  eq(members.rows.length, 1, 'auto-joined on sign-up');
-  const consumed = await as(A, `select consumed_at is not null as c from group_email_invites where group_id=$1`, [G4]);
-  eq(consumed.rows[0].c, true, 'marked consumed');
+  const F = '00000000-0000-0000-0000-0000000000e1';
+  await db.exec(`reset role; insert into auth.users(id,email,raw_user_meta_data) values ('${F}','future.person@example.com','{"full_name":"Future Person"}')`);
+  const members = await as(A, `select user_id from group_members where group_id=$1 and user_id=$2`, [G4, F]);
+  eq(members.rows.length, 0, 'not auto-joined on sign-up');
+  const mine = await as(F, `select invite_id, group_name from my_group_invites()`);
+  eq(mine.rows.map((r) => r.group_name), ['PendingInvites'], 'sees the invitation');
+  await as(F, `select respond_to_group_invite($1, true)`, [mine.rows[0].invite_id]);
+  eq((await as(A, `select count(*)::int n from group_members where group_id=$1 and user_id=$2 and left_at is null`, [G4, F])).rows[0].n, 1, 'joined after accepting');
 });
+await denied("invitation: someone else can't answer an invitation addressed to another email", async () => {
+  const GX = (await as(A, `insert into groups(name) values ('NotYours') returning id`)).rows[0].id;
+  await as(A, `select invite_member_by_email($1, 'b@x.com')`, [GX]);
+  const inv = (await as(B, `select invite_id from my_group_invites() where group_id=$1`, [GX])).rows[0].invite_id;
+  await as(C, `select respond_to_group_invite($1, true)`, [inv]);
+}, 'Invitation not found');
 await denied('invite by email: invalid email is rejected', () => as(A, `select invite_member_by_email($1, 'not-an-email')`, [G]), 'valid email');
 await denied('invite by email: non-member cannot invite', () => as(C, `select invite_member_by_email($1, 'someone@example.com')`, [G]), 'Not a member');
 await ok('invite by email: inviting the same pending email twice is a no-op, not an error', async () => {
@@ -216,6 +249,7 @@ await ok('invite by email: inviting an already-active member is a silent no-op',
   await as(A, `select invite_member_by_email($1, 'a@x.com')`, [G6]); // A invites themself (already owner)
   const r = await as(A, `select role from group_members where group_id=$1 and user_id=$2`, [G6, A]);
   eq(r.rows[0].role, 'owner', 'still owner, unchanged');
+  eq((await as(A, `select count(*)::int n from group_email_invites where group_id=$1`, [G6])).rows[0].n, 0, 'no invitation created');
 });
 
 await ok('cancel pending invite: removes it, and it can be re-invited afterward', async () => {
@@ -227,6 +261,13 @@ await ok('cancel pending invite: removes it, and it can be re-invited afterward'
   await as(A, `select invite_member_by_email($1, 'maybe@example.com')`, [G7]); // re-invite works
   const back = await as(A, `select count(*)::int n from group_email_invites where group_id=$1`, [G7]);
   eq(back.rows[0].n, 1, 're-invited');
+});
+await ok('cancel pending invite: also removes a declined one', async () => {
+  const GD = (await as(A, `insert into groups(name) values ('CancelDeclined') returning id`)).rows[0].id;
+  await as(A, `select invite_member_by_email($1, 'b@x.com')`, [GD]);
+  await as(B, `select respond_to_group_invite($1, false)`, [(await as(B, `select invite_id from my_group_invites() where group_id=$1`, [GD])).rows[0].invite_id]);
+  await as(A, `select cancel_pending_invite($1, 'b@x.com')`, [GD]);
+  eq((await as(A, `select count(*)::int n from group_email_invites where group_id=$1`, [GD])).rows[0].n, 0, 'removed');
 });
 await ok('cancel pending invite: non-member cannot, but a no-op for a nonexistent invite is not an error', async () => {
   const G8 = (await as(A, `insert into groups(name) values ('CancelInvite2') returning id`)).rows[0].id;
