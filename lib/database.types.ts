@@ -176,6 +176,8 @@ export type Database = {
           group_id: string
           id: string
           invited_by: string
+          responded_at: string | null
+          status: string
         }
         Insert: {
           consumed_at?: string | null
@@ -184,6 +186,8 @@ export type Database = {
           group_id: string
           id?: string
           invited_by?: string
+          responded_at?: string | null
+          status?: string
         }
         Update: {
           consumed_at?: string | null
@@ -192,6 +196,8 @@ export type Database = {
           group_id?: string
           id?: string
           invited_by?: string
+          responded_at?: string | null
+          status?: string
         }
         Relationships: [
           {
@@ -483,6 +489,18 @@ export type Database = {
       is_group_member: { Args: { gid: string }; Returns: boolean }
       join_group_with_code: { Args: { p_code: string }; Returns: string }
       leave_group: { Args: { p_group: string }; Returns: undefined }
+      my_group_invites: {
+        Args: never
+        Returns: {
+          created_at: string
+          group_icon: string
+          group_id: string
+          group_kind: string
+          group_name: string
+          invite_id: string
+          invited_by_name: string
+        }[]
+      }
       record_settlement: {
         Args: {
           p_amount_cents: number
@@ -498,6 +516,10 @@ export type Database = {
       remove_group_member: {
         Args: { p_group: string; p_user: string }
         Returns: undefined
+      }
+      respond_to_group_invite: {
+        Args: { p_accept: boolean; p_invite_id: string }
+        Returns: string
       }
       save_expense: {
         Args: {
