@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -142,6 +143,10 @@ export default function ProfileScreen() {
             <Ionicons name="log-out-outline" size={18} color={colors.negative} />
             <Text style={styles.signOutText}>Sign out</Text>
           </Pressable>
+          <Text style={styles.version}>
+            Shakedown {Constants.expoConfig?.version ?? ''}
+            {Constants.expoConfig?.ios?.buildNumber ? ` (${Constants.expoConfig.ios.buildNumber})` : ''}
+          </Text>
         </ScrollView>
       </SafeAreaView>
     </ScreenBackground>
@@ -186,5 +191,6 @@ const styles = StyleSheet.create({
   groupLineName: { fontSize: 14, color: colors.text },
   groupLineText: { fontSize: 14, color: colors.muted },
   signOut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
+  version: { fontSize: 13, color: colors.muted, textAlign: 'center', marginTop: spacing.sm },
   signOutText: { fontSize: 17, fontWeight: '600', color: colors.negative },
 });
