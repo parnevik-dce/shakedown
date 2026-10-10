@@ -1,10 +1,11 @@
 export type SortKey = 'date-desc' | 'date-asc' | 'entered-desc' | 'entered-asc';
 
-export const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-  { key: 'date-desc', label: 'Expense date, newest' },
-  { key: 'date-asc', label: 'Expense date, oldest' },
-  { key: 'entered-desc', label: 'Date entered, newest' },
-  { key: 'entered-asc', label: 'Date entered, oldest' },
+/** `label` is the full wording (picker); `short` is the compact form shown on the chip. */
+export const SORT_OPTIONS: { key: SortKey; label: string; short: string }[] = [
+  { key: 'date-desc', label: 'Expense date, newest', short: 'Date, newest' },
+  { key: 'date-asc', label: 'Expense date, oldest', short: 'Date, oldest' },
+  { key: 'entered-desc', label: 'Date entered, newest', short: 'Entered, newest' },
+  { key: 'entered-asc', label: 'Date entered, oldest', short: 'Entered, oldest' },
 ];
 
 export type FilterableExpense = {
