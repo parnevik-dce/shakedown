@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { formatCents, parseDollars } from './money.ts';
-import { checkSplit, defaultThousandths, equalSplit, parsePercent, percentSplit } from './splits.ts';
+import { centsToInput, formatCents, parseDollars } from './money.ts';
+import { autoFillTwoPersonExact, checkSplit, defaultThousandths, equalSplit, parsePercent, percentSplit } from './splits.ts';
 
 const sum = (splits: { owedCents: number }[]) => splits.reduce((s, x) => s + x.owedCents, 0);
 const ids = (n: number) => Array.from({ length: n }, (_, i) => `u${i}`);
@@ -113,4 +113,77 @@ test('formatWhen', () => {
   assert.equal(formatWhen(new Date(2026, 7, 24, 9, 0).toISOString(), now), 'Mon, Aug 24');
   assert.equal(formatWhen(new Date(2026, 5, 1, 9, 0).toISOString(), now), 'Jun 1');
   assert.equal(formatWhen(new Date(2025, 11, 31, 9, 0).toISOString(), now), 'Dec 31, 2025');
+});
+
+// --- two-person exact split auto-fill -------------------------------------
+const slot = (userId: string, text = '', included = true) => ({ userId, included, text });
+const fill = (inputs: ReturnType<typeof slot>[], anchor: string, total: number | null) =>
+  autoFillTwoPersonExact(inputs, anchor, total, parseDollars, centsToInput);
+const texts = (inputs: ReturnType<typeof slot>[]) => inputs.map((i) => i.text);
+
+test('auto-fill: the other person gets the remainder', () => {
+  assert.deepEqual(texts(fill([slot('a', '12'), slot('b')], 'a', 5000)), ['12', '38.00']);
+  assert.deepEqual(texts(fill([slot('a', '12.5'), slot('b', '25.00')], 'a', 5000)), ['12.5', '37.50']);
+});
+
+test('auto-fill: works whichever field is edited', () => {
+  assert.deepEqual(texts(fill([slot('a', '25.00'), slot('b', '10')], 'b', 5000)), ['40.00', '10']);
+});
+
+test('auto-fill: the two always add up to the cent, and the form accepts the result', () => {
+  const out = fill([slot('a', '3.33'), slot('b')], 'a', 1000);
+  assert.deepEqual(texts(out), ['3.33', '6.67']);
+  assert.equal(checkSplit('exact', 1000, out, parseDollars, formatCents).ok, true);
+});
+
+test('auto-fill: reads amounts typed with $ and commas', () => {
+  assert.deepEqual(texts(fill([slot('a', '$1,000'), slot('b')], 'a', 150000)), ['$1,000', '500.00']);
+});
+
+test('auto-fill: an amount over the total leaves the other field empty, not negative', () => {
+  assert.deepEqual(texts(fill([slot('a', '60'), slot('b', '25.00')], 'a', 5000)), ['60', '']);
+});
+
+test('auto-fill: an amount equal to the total leaves the other at zero', () => {
+  assert.deepEqual(texts(fill([slot('a', '50'), slot('b')], 'a', 5000)), ['50', '0.00']);
+});
+
+test('auto-fill: blank or invalid input leaves the other field alone', () => {
+  const inputs = [slot('a', ''), slot('b', '25.00')];
+  assert.equal(fill(inputs, 'a', 5000), inputs);
+  const bad = [slot('a', 'abc'), slot('b', '25.00')];
+  assert.equal(fill(bad, 'a', 5000), bad);
+});
+
+test('auto-fill: needs a total and exactly two people', () => {
+  const two = [slot('a', '12'), slot('b')];
+  assert.equal(fill(two, 'a', null), two);
+  assert.equal(fill(two, 'a', 0), two);
+  const three = [slot('a', '12'), slot('b'), slot('c')];
+  assert.equal(fill(three, 'a', 5000), three);
+  const one = [slot('a', '12'), slot('b', '', false)];
+  assert.equal(fill(one, 'a', 5000), one);
+});
+
+test('auto-fill: someone left out of the split is ignored and left untouched', () => {
+  const out = fill([slot('a', '12'), slot('b'), slot('c', '7', false)], 'a', 5000);
+  assert.deepEqual(texts(out), ['12', '38.00', '7']);
+});
+
+test('auto-fill: an anchor who is not one of the two included people does nothing', () => {
+  const inputs = [slot('a', '12'), slot('b', '5'), slot('c', '7', false)];
+  assert.equal(fill(inputs, 'c', 5000), inputs);
+  assert.equal(fill(inputs, 'nobody', 5000), inputs);
+});
+
+test('auto-fill: changing the total recalculates from the anchored field', () => {
+  const typed = fill([slot('a', '12'), slot('b')], 'a', 5000); // b = 38.00
+  assert.deepEqual(texts(fill(typed, 'a', 8000)), ['12', '68.00']);
+});
+
+test('auto-fill: never modifies the array it is given', () => {
+  const inputs = [slot('a', '12'), slot('b')];
+  const snapshot = JSON.stringify(inputs);
+  fill(inputs, 'a', 5000);
+  assert.equal(JSON.stringify(inputs), snapshot);
 });
