@@ -12,10 +12,14 @@ export function formatWhen(iso: string, now: Date = new Date()): string {
   return d.toLocaleDateString('en-US', sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-/** Full date and time something happened, e.g. "Oct 5, 2026 at 3:12 PM". */
+/**
+ * Full date and time something happened, in the device's time zone with its short
+ * code, e.g. "Oct 5, 2026 at 3:12 PM PDT". The code reflects the zone at that
+ * moment (PDT vs PST). Zones without a common abbreviation show as an offset ("GMT+9").
+ */
 export function formatDateTime(iso: string): string {
   const d = new Date(iso);
   const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
   return `${date} at ${time}`;
 }
