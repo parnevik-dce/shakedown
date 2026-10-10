@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
@@ -8,6 +8,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ScreenBackground } from '@/components/ScreenBackground';
 import { Avatar, EmptyState, LinkButton, PrimaryButton, SectionLabel } from '@/components/ui';
 import { BalancesTab } from '@/components/BalancesTab';
+import { ExpenseFilterBar } from '@/components/ExpenseFilterBar';
+import { filterAndSortExpenses, filterPeople, type SortKey } from '@/lib/expenseFilters';
 import { fetchGroupBalances, type GroupBalances } from '@/lib/balances';
 import {
   fetchGroupActivity,
@@ -153,6 +155,24 @@ export default function GroupScreen() {
   const [tab, setTab] = useState<Tab>(initialTab === 'members' ? 'members' : 'expenses');
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<SortKey>('date-desc');
+  const [personId, setPersonId] = useState<string | null>(null);
+
+  const filtersActive = query.trim() !== '' || personId !== null;
+  const visibleExpenses = useMemo(
+    () => filterAndSortExpenses(expenseList ?? [], { query, personId, sort }),
+    [expenseList, query, personId, sort]
+  );
+  const filterablePeople = useMemo(
+    () =>
+      filterPeople(
+        (group?.members ?? []).map((m) => ({ userId: m.userId, name: m.displayName })),
+        (expenseList ?? []).flatMap((e) => e.splitPeople),
+        me
+      ),
+    [group, expenseList, me]
+  );
 
   useEffect(() => {
     if (group?.coverImagePath) getTripCoverUrl(group.coverImagePath).then(setCoverUrl).catch(() => {});
@@ -358,11 +378,45 @@ export default function GroupScreen() {
                   />
                 </View>
               ) : (
-                <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
-                  {expenseList?.map((item) => (
-                    <ExpenseRow key={item.id} item={item} me={me} />
-                  ))}
-                </ScrollView>
+                <>
+                  <ExpenseFilterBar
+                    query={query}
+                    onQueryChange={setQuery}
+                    sort={sort}
+                    onSortChange={setSort}
+                    personId={personId}
+                    onPersonChange={setPersonId}
+                    people={filterablePeople}
+                    me={me}
+                  />
+                  {expenseList && filtersActive && visibleExpenses.length > 0 && (
+                    <Text style={styles.resultCount}>
+                      {visibleExpenses.length} of {expenseList.length} expenses
+                    </Text>
+                  )}
+                  {expenseList && visibleExpenses.length === 0 ? (
+                    <View style={styles.noMatch}>
+                      <Text style={styles.noMatchTitle}>No matching expenses</Text>
+                      <LinkButton
+                        title="Clear search and filter"
+                        onPress={() => {
+                          setQuery('');
+                          setPersonId(null);
+                        }}
+                      />
+                    </View>
+                  ) : (
+                    <ScrollView
+                      contentContainerStyle={{ paddingBottom: 24 }}
+                      keyboardShouldPersistTaps="handled"
+                      keyboardDismissMode="on-drag"
+                    >
+                      {visibleExpenses.map((item) => (
+                        <ExpenseRow key={item.id} item={item} me={me} />
+                      ))}
+                    </ScrollView>
+                  )}
+                </>
               )}
               <AddBar groupId={id} />
             </View>
@@ -508,6 +562,9 @@ export default function GroupScreen() {
 const styles = StyleSheet.create({
   addBar: { padding: spacing.lg, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   feedRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: 12 },
+  noMatch: { alignItems: 'center', gap: spacing.sm, paddingTop: spacing.lg },
+  noMatchTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
+  resultCount: { fontSize: 13, color: colors.muted, paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
   feedTitle: { fontSize: 15, fontWeight: '600', color: colors.text },
   feedSub: { fontSize: 13, color: colors.muted, marginTop: 2 },
   feedAmount: { fontSize: 16, fontWeight: '700', color: colors.text },
