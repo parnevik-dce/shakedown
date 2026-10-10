@@ -69,6 +69,33 @@ export type SplitInput = {
   text: string;
 };
 
+/**
+ * Two-person exact split: when someone edits one person's amount, the other person's
+ * amount follows as whatever is left of the total, so the two always add up. Only
+ * applies with a valid total and exactly two people included; otherwise (or if the
+ * edited amount is blank/invalid) the inputs come back untouched. An amount over the
+ * total leaves the other field empty rather than negative. Returns the same array when
+ * nothing changes.
+ */
+export function autoFillTwoPersonExact(
+  inputs: SplitInput[],
+  anchorUserId: string,
+  totalCents: number | null,
+  parseExact: (text: string) => number | null,
+  formatInput: (cents: number) => string
+): SplitInput[] {
+  const chosen = inputs.filter((i) => i.included);
+  if (chosen.length !== 2 || totalCents === null || totalCents <= 0) return inputs;
+  const anchor = chosen.find((i) => i.userId === anchorUserId);
+  const other = chosen.find((i) => i.userId !== anchorUserId);
+  if (!anchor || !other) return inputs;
+  const entered = parseExact(anchor.text);
+  if (entered === null) return inputs;
+  const text = entered > totalCents ? '' : formatInput(totalCents - entered);
+  if (text === other.text) return inputs;
+  return inputs.map((i) => (i.userId === other.userId ? { ...i, text } : i));
+}
+
 export type SplitCheck =
   | { ok: true; splits: Split[]; summary: string }
   | { ok: false; error: string; summary: string };

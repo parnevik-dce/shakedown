@@ -29,6 +29,7 @@ import {
   defaultThousandths,
   equalSplit,
   thousandthsToInput,
+  autoFillTwoPersonExact,
   type SplitInput,
   type SplitMethod,
 } from '@/lib/splits';
@@ -66,6 +67,8 @@ export default function ExpenseForm() {
   const [paidBy, setPaidBy] = useState(me);
   const [method, setMethod] = useState<SplitMethod>('equal');
   const [inputs, setInputs] = useState<SplitInput[]>([]);
+  // Whose exact amount the user last typed in; in a two-person split the other amount follows it.
+  const [anchorUserId, setAnchorUserId] = useState<string | null>(null);
   const [showDate, setShowDate] = useState(false);
   const [showPayer, setShowPayer] = useState(false);
 
@@ -143,11 +146,24 @@ export default function ExpenseForm() {
   const missingText = missing.length ? `Enter ${missing.join(' and ')} to save.` : null;
 
   function updateInput(userId: string, patch: Partial<SplitInput>) {
-    setInputs((prev) => prev.map((i) => (i.userId === userId ? { ...i, ...patch } : i)));
+    const typedExact = method === 'exact' && patch.text !== undefined;
+    setInputs((prev) => {
+      const next = prev.map((i) => (i.userId === userId ? { ...i, ...patch } : i));
+      return typedExact ? autoFillTwoPersonExact(next, userId, totalCents, parseDollars, centsToInput) : next;
+    });
+    if (typedExact) setAnchorUserId(userId);
+  }
+
+  function changeAmount(text: string) {
+    setAmountText(text);
+    if (method === 'exact' && anchorUserId) {
+      setInputs((prev) => autoFillTwoPersonExact(prev, anchorUserId, parseDollars(text), parseDollars, centsToInput));
+    }
   }
 
   function chooseMethod(next: SplitMethod) {
     if (next === method) return;
+    setAnchorUserId(null);
     setInputs((prev) => {
       const chosen = prev.filter((i) => i.included);
       let texts = new Map<string, string>();
@@ -261,7 +277,7 @@ export default function ExpenseForm() {
               <TextInput
                 autoFocus={!editing}
                 value={amountText}
-                onChangeText={setAmountText}
+                onChangeText={changeAmount}
                 placeholder="0.00"
                 placeholderTextColor={colors.border}
                 keyboardType="decimal-pad"
