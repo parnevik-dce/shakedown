@@ -31,6 +31,8 @@ export type ExpenseDetail = {
   splitMethod: SplitMethod;
   createdBy: string;
   creatorName: string;
+  /** When the expense was entered (ISO timestamp), as opposed to the date it's dated. */
+  createdAt: string;
   receiptPath: string | null;
   splits: { userId: string; displayName: string; email: string | null; owedCents: number; percent: number | null }[];
 };
@@ -40,7 +42,7 @@ export async function fetchExpense(id: string): Promise<ExpenseDetail> {
     await supabase
       .from('expenses')
       .select(
-        `id, group_id, description, amount_cents, paid_by, expense_date, split_method, created_by, receipt_path, deleted_at,
+        `id, group_id, description, amount_cents, paid_by, expense_date, split_method, created_by, created_at, receipt_path, deleted_at,
          payer:profiles!expenses_paid_by_fkey(display_name),
          creator:profiles!expenses_created_by_fkey(display_name),
          expense_splits(user_id, owed_cents, percent, profiles(display_name, email))`
@@ -60,6 +62,7 @@ export async function fetchExpense(id: string): Promise<ExpenseDetail> {
     splitMethod: e.split_method,
     createdBy: e.created_by,
     creatorName: e.creator?.display_name ?? 'Someone',
+    createdAt: e.created_at,
     receiptPath: e.receipt_path,
     splits: e.expense_splits
       .map((s) => ({
