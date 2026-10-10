@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, EmptyState, LinkButton, SectionLabel } from '@/components/ui';
 import { deleteExpense, fetchExpense, fromDateString, type ExpenseDetail } from '@/lib/expenses';
 import { formatCents } from '@/lib/money';
+import { formatDateTime } from '@/lib/time';
 import { getReceiptUrl } from '@/lib/receipts';
 import { useSession } from '@/lib/session';
 import { colors, spacing } from '@/lib/theme';
@@ -120,6 +121,9 @@ export default function ExpenseScreen() {
             })}{' '}
             · {describeSplit(expense)}
           </Text>
+          <Text style={styles.entered}>
+            Entered {formatDateTime(expense.createdAt)} by {expense.createdBy === me ? 'You' : expense.creatorName}
+          </Text>
 
           <SectionLabel>Split</SectionLabel>
           <View style={styles.card}>
@@ -191,6 +195,7 @@ const styles = StyleSheet.create({
   description: { fontSize: 22, fontWeight: '700', color: colors.text },
   amount: { fontSize: 40, fontWeight: '800', color: colors.text, marginTop: 4 },
   meta: { fontSize: 14, color: colors.muted, marginTop: 6, lineHeight: 20 },
+  entered: { fontSize: 13, color: colors.muted, marginTop: 2 },
   card: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: 'hidden' },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
   splitRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
