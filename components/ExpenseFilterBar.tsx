@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ActionSheetIOS, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -53,7 +54,9 @@ export function ExpenseFilterBar({
   people,
   me,
 }: Props) {
-  const sortLabel = SORT_OPTIONS.find((o) => o.key === sort)?.label ?? '';
+  // Search starts hidden; it stays open if there's already a query (e.g. coming back to the tab).
+  const [searchOpen, setSearchOpen] = useState(query !== '');
+  const sortLabel = SORT_OPTIONS.find((o) => o.key === sort)?.short ?? '';
   const person = people.find((p) => p.userId === personId);
   const personLabel = person ? (person.userId === me ? 'You' : person.name) : 'Everyone';
 
@@ -81,27 +84,46 @@ export function ExpenseFilterBar({
     );
   }
 
+  function toggleSearch() {
+    // Hiding the field also clears it, so results are never filtered by a search you can't see.
+    if (searchOpen) onQueryChange('');
+    setSearchOpen(!searchOpen);
+  }
+
   return (
     <View style={styles.wrap}>
-      <View style={styles.search}>
-        <Ionicons name="search" size={17} color={colors.muted} />
-        <TextInput
-          value={query}
-          onChangeText={onQueryChange}
-          placeholder="Search description or amount"
-          placeholderTextColor={colors.muted}
-          style={styles.input}
-          returnKeyType="search"
-          autoCorrect={false}
-          autoCapitalize="none"
-          clearButtonMode="while-editing"
-          accessibilityLabel="Search expenses"
-        />
-      </View>
       <View style={styles.chips}>
         <Chip icon="swap-vertical" label={sortLabel} active={sort !== DEFAULT_SORT} onPress={pickSort} />
         <Chip icon="person-outline" label={personLabel} active={personId !== null} onPress={pickPerson} />
+        <View style={{ flex: 1 }} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={searchOpen ? 'Hide search' : 'Search expenses'}
+          onPress={toggleSearch}
+          hitSlop={6}
+          style={({ pressed }) => [styles.searchToggle, searchOpen && styles.chipActive, pressed && { opacity: 0.7 }]}
+        >
+          <Ionicons name={searchOpen ? 'close' : 'search'} size={18} color={searchOpen ? colors.primary : colors.muted} />
+        </Pressable>
       </View>
+      {searchOpen && (
+        <View style={styles.search}>
+          <Ionicons name="search" size={17} color={colors.muted} />
+          <TextInput
+            value={query}
+            onChangeText={onQueryChange}
+            placeholder="Search description or amount"
+            placeholderTextColor={colors.muted}
+            style={styles.input}
+            returnKeyType="search"
+            autoFocus
+            autoCorrect={false}
+            autoCapitalize="none"
+            clearButtonMode="while-editing"
+            accessibilityLabel="Search expenses"
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -119,7 +141,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   input: { flex: 1, fontSize: 16, color: colors.text, paddingVertical: 10 },
-  chips: { flexDirection: 'row', gap: spacing.sm },
+  chips: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  searchToggle: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   chip: {
     flexShrink: 1,
     flexDirection: 'row',
