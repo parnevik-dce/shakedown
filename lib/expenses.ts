@@ -120,7 +120,11 @@ export type ExpenseListItem = {
   paidBy: string;
   payerName: string;
   expenseDate: string;
+  /** When the expense was entered (ISO timestamp), as opposed to the date it's dated. */
+  createdAt: string;
   hasReceipt: boolean;
+  /** Everyone with a share in the split (including people who have since left the group). */
+  splitPeople: { userId: string; name: string }[];
   /** What this expense means for me: what I lent, or what I owe. */
   mine: { kind: 'lent' | 'owe' | 'none'; cents: number };
 };
@@ -131,7 +135,7 @@ export async function fetchGroupExpenseList(groupId: string, myId: string): Prom
     await supabase
       .from('expenses')
       .select(
-        'id, description, amount_cents, paid_by, expense_date, receipt_path, expense_splits(user_id, owed_cents), payer:profiles!expenses_paid_by_fkey(display_name)'
+        'id, description, amount_cents, paid_by, expense_date, created_at, receipt_path, expense_splits(user_id, owed_cents, profile:profiles(display_name)), payer:profiles!expenses_paid_by_fkey(display_name)'
       )
       .eq('group_id', groupId)
       .is('deleted_at', null)
@@ -154,7 +158,9 @@ export async function fetchGroupExpenseList(groupId: string, myId: string): Prom
       paidBy: e.paid_by,
       payerName: e.payer?.display_name ?? 'Someone',
       expenseDate: e.expense_date,
+      createdAt: e.created_at,
       hasReceipt: e.receipt_path !== null,
+      splitPeople: e.expense_splits.map((s) => ({ userId: s.user_id, name: s.profile?.display_name ?? 'Someone' })),
       mine,
     };
   });
