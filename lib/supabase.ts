@@ -2,8 +2,10 @@ import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import * as Crypto from 'expo-crypto';
+import { AppState } from 'react-native';
 
 import type { Database } from './database.types';
+import { withJwtSkewRetry } from './resilientFetch';
 
 // React Native has no Web Crypto. Without it supabase-js builds its PKCE verifier from
 // Math.random and downgrades the challenge to "plain". Shim the two pieces it uses:
@@ -45,4 +47,14 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: false,
     flowType: 'pkce',
   },
+  // Every request goes through here: retry the brief "JWT issued at future" rejection that can
+  // follow a token refresh on app open, instead of surfacing it as a load error.
+  global: { fetch: withJwtSkewRetry((input, init) => fetch(input, init)) },
+});
+
+// Only keep refreshing the token while the app is in the foreground (Supabase's recommendation
+// for React Native); coming back to the foreground refreshes it straight away if it's due.
+AppState.addEventListener('change', (state) => {
+  if (state === 'active') supabase.auth.startAutoRefresh();
+  else supabase.auth.stopAutoRefresh();
 });
